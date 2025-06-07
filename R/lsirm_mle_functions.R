@@ -126,7 +126,57 @@ L1L2_lsirm <- function(e.response, par, grid){
   ))
 }
 
-# LSIRM
+#' ML estimation of LSIRM
+#'
+#' @param data
+#' @param dimension
+#' @param range
+#' @param q
+#' @param max_iter
+#' @param threshold
+#'
+#' @return
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#' ################################################################################
+#' # SIMULATION DATA
+#' ################################################################################
+#'
+#' # data generation
+#' dataset <- data_generation(seed = 1234,
+#'                            N = 2000,
+#'                            nitem = 10,
+#'                            gamma = 0.5)
+#'
+#' data <- dataset$data
+#' item <- dataset$item
+#' theta <- dataset$theta
+#'
+#' # model fitting
+#' fit <- lsirm(data,
+#'              max_iter = 200,
+#'              threshold = 0.001)
+#'
+#' # plotting
+#' plot.lsirm(item)
+#' plot.lsirm(fit$par_est)
+#' plot.lsirm(fit)
+#'
+#' plot(item[,1], fit$par_est[,1])
+#' abline(0,1)
+#'
+#' ################################################################################
+#' # DRV DATA
+#' ################################################################################
+#' drv_data <- read.table("drv_data.txt")
+#' fit.drv <- lsirm(drv_data,
+#'                  max_iter = 200,
+#'                  threshold = 0.001)
+#'
+#' plot.lsirm(fit.drv)
+#' }
 lsirm <- function(data, dimension = 3, range = c(-4,4), q = 11, max_iter = 200, threshold = 0.0001){
   x <- seq(range[1], range[2], length.out=q)
   grid_list <- replicate(dimension, x, simplify = FALSE)
@@ -207,6 +257,15 @@ lsirm <- function(data, dimension = 3, range = c(-4,4), q = 11, max_iter = 200, 
 # PLOTTING
 ################################################################################
 library(ggplot2)
+#' Title
+#'
+#' @param item
+#' @param range
+#'
+#' @return
+#' @export
+#'
+#' @examples
 plot.lsirm <- function(item, range = c(-3,3)){
   gamma <- 1
   if(is.list(item)){

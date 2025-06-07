@@ -1,11 +1,14 @@
 Package: lsirmML
 Type: Package
-Title: What the Package Does (Title Case)
+Title: Maximum Likelihood Estimation of the Latent Space Item Response Model
 Version: 0.1.0
-Author: Who wrote it
-Maintainer: The package maintainer <yourself@somewhere.net>
-Description: More about what it does (maybe more than one line)
-    Use four spaces when indenting paragraphs within the Description.
-License: What license is it under?
+Author: Seewoo Li <seewooli@ucla.edu>
+Maintainer: Seewoo Li <seewooli@ucla.edu>
+Description: Toolkits for maximum likelihood (ML) estimation of 
+    the latent space item response model (LSIRM).
+License: GPL-3
 Encoding: UTF-8
 LazyData: true
+RoxygenNote: 7.3.2
+Imports:
+  ggplot2
