@@ -296,7 +296,7 @@ plot.lsirm <- function(item, range = c(-3,3)){
   if(!is.null(ls_positions)){
     p <- p +
       ggplot2::geom_point(data = ls_positions,
-                 mapping = aes(x = coordinate1, y = coordinate2),
+                 mapping = ggplot2::aes(x = coordinate1, y = coordinate2),
                  size = 0,
                  color="red",
                  alpha=0.7)
