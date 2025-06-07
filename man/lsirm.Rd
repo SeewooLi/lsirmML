@@ -9,12 +9,22 @@ lsirm(
   dimension = 3,
   range = c(-4, 4),
   q = 11,
-  max_iter = 200,
-  threshold = 1e-04
+  max_iter = 500,
+  threshold = 0.001
 )
 }
 \arguments{
-\item{threshold}{}
+\item{data}{data matrix}
+
+\item{dimension}{the number of dimension (main + interaction). The default is 3.}
+
+\item{range}{range of the quadrature points}
+
+\item{q}{the number of quadrature points}
+
+\item{max_iter}{the maximum number of EM iteration}
+
+\item{threshold}{the threshold to determine the EM convergence}
 }
 \description{
 ML estimation of LSIRM

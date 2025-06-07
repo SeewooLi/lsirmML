@@ -7,7 +7,9 @@
 \method{plot}{lsirm}(item, range = c(-3, 3))
 }
 \arguments{
-\item{range}{}
+\item{item}{item parameters, or a list object from \code{lsirm}}
+
+\item{range}{range of the coordinates}
 }
 \description{
 Title

@@ -14,14 +14,25 @@ llik <- function(data, theta, item){
   return(log(likelihood))
 }
 
-# data generation
+
+#' Data Generation
+#'
+#' @param seed seed number for replication
+#' @param N the number of respondents
+#' @param nitem the number of items
+#' @param gamma gamma parameter of LSIRM
+#'
+#' @return
+#' @export
+#'
+#' @examples
 data_generation <- function(seed = 1, N, nitem, gamma = 0.5){
   dimension <- 3
   theta <- mvtnorm::rmvnorm(N,
                             mean = rep(0, dimension),
                             sigma = diag(c(1,rep(gamma^2, dimension-1))))
   item <- cbind(rnorm(nitem),
-                c(rnorm(nitem/2, -2*gamma, gamma/3), rnorm(nitem/2, 2*gamma, gamma/3)),
+                c(rnorm(nitem/2, -gamma, gamma/10), rnorm(nitem/2, gamma, gamma/10)),
                 0
                 )
   item[,2:dimension][upper.tri(item[,2:dimension])] <- 0
@@ -128,12 +139,12 @@ L1L2_lsirm <- function(e.response, par, grid){
 
 #' ML estimation of LSIRM
 #'
-#' @param data
-#' @param dimension
-#' @param range
-#' @param q
-#' @param max_iter
-#' @param threshold
+#' @param data data matrix
+#' @param dimension the number of dimension (main + interaction). The default is 3.
+#' @param range range of the quadrature points
+#' @param q the number of quadrature points
+#' @param max_iter the maximum number of EM iteration
+#' @param threshold the threshold to determine the EM convergence
 #'
 #' @return
 #' @export
@@ -177,7 +188,7 @@ L1L2_lsirm <- function(e.response, par, grid){
 #'
 #' plot.lsirm(fit.drv)
 #' }
-lsirm <- function(data, dimension = 3, range = c(-4,4), q = 11, max_iter = 200, threshold = 0.0001){
+lsirm <- function(data, dimension = 3, range = c(-4,4), q = 11, max_iter = 500, threshold = 0.001){
   x <- seq(range[1], range[2], length.out=q)
   grid_list <- replicate(dimension, x, simplify = FALSE)
   grid <- as.matrix(do.call(expand.grid, grid_list))
@@ -228,8 +239,8 @@ lsirm <- function(data, dimension = 3, range = c(-4,4), q = 11, max_iter = 200, 
     message("\r","\r",
             "EM cycle = ",iter,
             ", gamma = ",round(sds[2], 2),
-            ", logL = ", round(E$logL,2),
-            ", Max-Change = ",round(diff,7),sep="",appendLF=FALSE)
+            ", logL = ", sprintf("%.2f", E$logL),
+            ", Max-Change = ",sprintf("%.5f",diff),sep="",appendLF=FALSE)
     flush.console()
     if(diff < threshold | iter >= max_iter) break
   }
@@ -259,12 +270,12 @@ lsirm <- function(data, dimension = 3, range = c(-4,4), q = 11, max_iter = 200, 
 library(ggplot2)
 #' Title
 #'
-#' @param item
-#' @param range
+#' @param item item parameters, or a list object from \code{lsirm}
+#' @param range range of the coordinates
 #'
 #' @return
 #' @export
-#' @importFrom ggplot2
+#' @import ggplot2
 #'
 #' @examples
 plot.lsirm <- function(item, range = c(-3,3)){
