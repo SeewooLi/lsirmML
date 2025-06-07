@@ -264,6 +264,7 @@ library(ggplot2)
 #'
 #' @return
 #' @export
+#' @importFrom ggplot2
 #'
 #' @examples
 plot.lsirm <- function(item, range = c(-3,3)){
@@ -285,16 +286,16 @@ plot.lsirm <- function(item, range = c(-3,3)){
   df$Label <- rownames(df)
 
   # Plot
-  p <- ggplot() +
+  p <- ggplot2::ggplot() +
     # geom_point(size = 0) +
-    geom_text(data = df, mapping = aes(x = Dim1, y = Dim2, label = Label), vjust = 0, hjust = 0) +
-    theme_minimal() +
-    coord_cartesian(xlim = range * gamma, ylim = range * gamma)+
-    labs(title = NULL,
+    ggplot2::geom_text(data = df, mapping = aes(x = Dim1, y = Dim2, label = Label), vjust = 0, hjust = 0) +
+    ggplot2::theme_minimal() +
+    ggplot2::coord_cartesian(xlim = range * gamma, ylim = range * gamma)+
+    ggplot2::labs(title = NULL,
          x = "coordinate 1", y = "coordinate 2")
   if(!is.null(ls_positions)){
     p <- p +
-      geom_point(data = ls_positions,
+      ggplot2::geom_point(data = ls_positions,
                  mapping = aes(x = coordinate1, y = coordinate2),
                  size = 0,
                  color="red",
