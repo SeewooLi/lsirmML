@@ -100,11 +100,16 @@ Estep <- function(data, item, grid, prior = NULL){
 Mstep <- function(E, item, contrast_m, sds, max_iter = 5, threshold = 0.000001){
   estimated_item <- item
 
+  IM <- matrix(0, nrow = length(item), ncol = length(item))
+
   iter <- 0
   repeat{
     iter <- iter + 1
     for(i in 1:nrow(item)){
+      index <- (ncol(item)*i-(ncol(item)-1)):(ncol(item)*i)
+
       L1L2 <- L1L2_lsirm(E$e.response[i,,], item[i,], E$grid)
+      IM[index,index] <- L1L2$IM
       diff <- as.vector(
         solve(L1L2$IM + diag(1/(sds^2))) %*%
           (L1L2$gradient - ((estimated_item[i,]-0)/sds))
@@ -116,7 +121,10 @@ Mstep <- function(E, item, contrast_m, sds, max_iter = 5, threshold = 0.000001){
     item <- estimated_item
   }
 
-  return(estimated_item)
+  return(list(
+    estimated_item,
+    IM
+    ))
 }
 
 L1L2_lsirm <- function(e.response, par, grid){
@@ -206,12 +214,13 @@ lsirm <- function(data, dimension = 3, range = c(-4,4), q = 11, max_iter = 500, 
   initial_item <- initial_item * contrast_m
 
   iter <- 0
+  EM_history <- list()
   repeat{
     iter <- iter + 1
 
     E <- Estep(data, initial_item, grid, prior)
     M <- Mstep(E, initial_item, contrast_m, sds)
-
+    EM_history[[iter]] <- M[[1]]
 
 
     factor_means <- as.vector(E$Ak%*%E$grid)
@@ -233,9 +242,9 @@ lsirm <- function(data, dimension = 3, range = c(-4,4), q = 11, max_iter = 500, 
                               sigma = diag(sds^2))
     prior <- prior/sum(prior)
 
-    diff <- max(abs(initial_item - M), na.rm = TRUE)
+    diff <- max(abs(initial_item - M[[1]]), na.rm = TRUE)
 
-    initial_item <- M
+    initial_item <- M[[1]]
     message("\r","\r",
             "EM cycle = ",iter,
             ", gamma = ",round(sds[2], 2),
@@ -250,6 +259,8 @@ lsirm <- function(data, dimension = 3, range = c(-4,4), q = 11, max_iter = 500, 
   theta_se <- sqrt(E$posterior%*%(E$grid^2)-theta^2)
   return(list(
     par_est = initial_item,
+    IM = M[[2]],
+    EM_history = EM_history,
     fk=E$freq,
     iter=iter,
     quad=grid,
