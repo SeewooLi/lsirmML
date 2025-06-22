@@ -32,7 +32,7 @@ data_generation <- function(seed = 1, N, nitem, gamma = 0.5){
                             mean = rep(0, dimension),
                             sigma = diag(c(1,rep(gamma^2, dimension-1))))
   item <- cbind(rnorm(nitem),
-                c(rnorm(nitem/2, -gamma, gamma/10), rnorm(nitem/2, gamma, gamma/10)),
+                c(rnorm(nitem/2, -gamma/2, gamma/10), rnorm(nitem/2, gamma/2, gamma/10)),
                 0
                 )
   item[,2:dimension][upper.tri(item[,2:dimension])] <- 0
@@ -112,9 +112,9 @@ Mstep <- function(E, item, contrast_m, sds, max_iter = 5, threshold = 0.000001){
       IM[index,index] <- L1L2$IM
       diff <- as.vector(
         solve(L1L2$IM + diag(1/(sds^2))) %*%
-          (L1L2$gradient - ((estimated_item[i,]-0)/sds))
+          (L1L2$gradient - ((estimated_item[i,]-0)/(sds^2)))
         )
-      estimated_item[i,] <- estimated_item[i,] + diff * contrast_m[i,] /2
+      estimated_item[i,] <- estimated_item[i,] + diff * contrast_m[i,]
     }
     if(max(abs(estimated_item - item)) < threshold | iter > max_iter) break
 
@@ -197,6 +197,8 @@ L1L2_lsirm <- function(e.response, par, grid){
 #' plot.lsirm(fit.drv)
 #' }
 lsirm <- function(data, dimension = 3, range = c(-4,4), q = 11, max_iter = 500, threshold = 0.001){
+  args_list <- as.list(environment())
+
   x <- seq(range[1], range[2], length.out=q)
   grid_list <- replicate(dimension, x, simplify = FALSE)
   grid <- as.matrix(do.call(expand.grid, grid_list))
@@ -222,12 +224,13 @@ lsirm <- function(data, dimension = 3, range = c(-4,4), q = 11, max_iter = 500, 
     M <- Mstep(E, initial_item, contrast_m, sds)
     EM_history[[iter]] <- M[[1]]
 
-
+    old_sds <- sds
     factor_means <- as.vector(E$Ak%*%E$grid)
     cov_mat <- t(E$grid) %*% sweep(E$grid, 1, E$Ak, FUN = "*") - factor_means %*% t(factor_means)
     sds <- sqrt(diag(cov_mat))
-    # M <- sweep(M, 2, factor_means, FUN = "-")
-    # M <- sweep(M, 2, 1/sds, FUN = "*")
+    M[[1]] <- sweep(M[[1]], 2, factor_means, FUN = "-")
+    M[[1]][which(contrast_m==0)] <- 0
+    # M[[1]] <- sweep(M[[1]], 2, old_sds/sds, FUN = "*")
     # M[,1] <- M[,1]/sds[1]
     sds[-1] <- sqrt(mean(sds[-1]^2))
     # sds[-1] <- sds[2]/sds[1]
@@ -271,9 +274,12 @@ lsirm <- function(data, dimension = 3, range = c(-4,4), q = 11, max_iter = 500, 
     theta = theta,
     theta_se = theta_se,
     logL= E$logL,
-    f_cov = diag(sds^2)
+    f_cov = diag(sds^2),
+    args_list = args_list
   ))
 }
+
+
 
 ################################################################################
 # PLOTTING
@@ -289,7 +295,7 @@ library(ggplot2)
 #' @import ggplot2
 #'
 #' @examples
-plot.lsirm <- function(item, range = c(-3,3)){
+plot.lsirm <- function(item, range = c(-2.5, 2.5)){
   gamma <- 1
   if(is.list(item)){
     gamma <- sqrt(item$f_cov[2,2])
