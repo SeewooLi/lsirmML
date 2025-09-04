@@ -4,7 +4,7 @@
 \alias{plot.lsirm}
 \title{Title}
 \usage{
-\method{plot}{lsirm}(item, range = c(-3, 3))
+\method{plot}{lsirm}(item, range = c(-2.5, 2.5), ls_positions = NULL, gamma = NULL)
 }
 \arguments{
 \item{item}{item parameters, or a list object from \code{lsirm}}

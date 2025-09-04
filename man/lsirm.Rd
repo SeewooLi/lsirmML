@@ -39,7 +39,7 @@ ML estimation of LSIRM
 dataset <- data_generation(seed = 1234,
                            N = 2000,
                            nitem = 10,
-                           gamma = 0.5)
+                           gamma = 1.0)
 
 data <- dataset$data
 item <- dataset$item

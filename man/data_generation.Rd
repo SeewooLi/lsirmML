@@ -4,7 +4,7 @@
 \alias{data_generation}
 \title{Data Generation}
 \usage{
-data_generation(seed = 1, N, nitem, gamma = 0.5)
+data_generation(seed = 1, N, nitem = NULL, gamma = 0.5, item = NULL)
 }
 \arguments{
 \item{seed}{seed number for replication}

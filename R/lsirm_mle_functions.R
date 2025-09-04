@@ -117,7 +117,7 @@ Mstep <- function(E, item, contrast_m, sds, max_iter = 5, threshold = 0.000001){
     for(i in 1:nrow(item)){
       index <- (ncol(item)*i-(ncol(item)-1)):(ncol(item)*i)
 
-      L1L2 <- L1L2_lsirm(E$e.response[i,,], item[i,], E$grid)
+      L1L2 <- L1L2_lsirm_cpp(E$e.response[i,,], item[i,], E$grid)
       IM[index,index] <- L1L2$IM
       diff <- as.vector(
         solve(L1L2$IM + diag(1/(sds^2))) %*%
@@ -176,7 +176,7 @@ L1L2_lsirm <- function(e.response, par, grid){
 #' dataset <- data_generation(seed = 1234,
 #'                            N = 2000,
 #'                            nitem = 10,
-#'                            gamma = 0.5)
+#'                            gamma = 1.0)
 #'
 #' data <- dataset$data
 #' item <- dataset$item
@@ -229,7 +229,8 @@ lsirm <- function(data, dimension = 3, range = c(-4,4), q = 11, max_iter = 500, 
   repeat{
     iter <- iter + 1
 
-    E <- Estep(data, initial_item, grid, prior)
+    E <- Estep_cpp(data, initial_item, grid, prior)
+    dim(E$e.response) <- c(nitem, nrow(grid), max(data, na.rm = TRUE) + 1)
 
     old_sds <- sds
     factor_means <- as.vector(E$Ak%*%E$grid)
