@@ -208,8 +208,8 @@ L1L2_lsirm <- function(e.response, par, grid){
 lsirm <- function(data, dimension = 3, range = c(-4,4), q = 11, max_iter = 500, threshold = 0.001){
   args_list <- as.list(environment())
 
-  ranges <- lapply(c(1,0.7,0.7), function(sd) c(range, q) * sd)
-  grid_list <- lapply(ranges, function(r) seq(r[1], r[2], length.out = round(r[3], 0)))
+  ranges <- lapply(c(1,0.8,0.8), function(sd) range * sd)
+  grid_list <- lapply(ranges, function(r) seq(r[1], r[2], length.out = q))
   grid <- as.matrix(do.call(expand.grid, grid_list))
 
   prior <- mvtnorm::dmvnorm(grid,
@@ -250,8 +250,8 @@ lsirm <- function(data, dimension = 3, range = c(-4,4), q = 11, max_iter = 500, 
 
     # EM_history[[iter]] <- M[[1]]
 
-    ranges <- lapply(c(1,0.7,0.7)*sds, function(sd) c(range, q) * sd)
-    grid_list <- lapply(ranges, function(r) seq(r[1], r[2], length.out = round(r[3], 0)))
+    ranges <- lapply(c(1,0.8,0.8)*sds, function(sd) range * sd)
+    grid_list <- lapply(ranges, function(r) seq(r[1], r[2], length.out = q))
     grid <- as.matrix(do.call(expand.grid, grid_list))
 
     prior <- mvtnorm::dmvnorm(grid,
