@@ -37,15 +37,15 @@ BEGIN_RCPP
 END_RCPP
 }
 // Estep_cpp
-List Estep_cpp(IntegerMatrix data, NumericMatrix item, NumericMatrix grid, NumericVector prior);
+Rcpp::List Estep_cpp(const Rcpp::IntegerMatrix& data, const Rcpp::NumericMatrix& item, const Rcpp::NumericMatrix& grid, const Rcpp::NumericVector& prior);
 RcppExport SEXP _lsirmML_Estep_cpp(SEXP dataSEXP, SEXP itemSEXP, SEXP gridSEXP, SEXP priorSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< IntegerMatrix >::type data(dataSEXP);
-    Rcpp::traits::input_parameter< NumericMatrix >::type item(itemSEXP);
-    Rcpp::traits::input_parameter< NumericMatrix >::type grid(gridSEXP);
-    Rcpp::traits::input_parameter< NumericVector >::type prior(priorSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::IntegerMatrix& >::type data(dataSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::NumericMatrix& >::type item(itemSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::NumericMatrix& >::type grid(gridSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type prior(priorSEXP);
     rcpp_result_gen = Rcpp::wrap(Estep_cpp(data, item, grid, prior));
     return rcpp_result_gen;
 END_RCPP
