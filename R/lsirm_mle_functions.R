@@ -106,7 +106,7 @@ Estep <- function(data, item, grid, prior = NULL){
 }
 
 # M-step
-Mstep <- function(E, item, contrast_m, sds, max_iter = 5, threshold = 0.000001){
+Mstep <- function(E, item, contrast_m, sds, max_iter = 5, threshold = 0.000001, model){
   estimated_item <- item
 
   IM <- matrix(0, nrow = length(item), ncol = length(item))
@@ -115,15 +115,24 @@ Mstep <- function(E, item, contrast_m, sds, max_iter = 5, threshold = 0.000001){
   repeat{
     iter <- iter + 1
     for(i in 1:nrow(item)){
-      index <- (ncol(item)*i-(ncol(item)-1)):(ncol(item)*i)
+      # index <- (ncol(item)*i-(ncol(item)-1)):(ncol(item)*i)
 
       L1L2 <- L1L2_lsirm_cpp(E$e.response[i,,], item[i,], E$grid)
-      IM[index,index] <- L1L2$IM
-      diff <- as.vector(
-        solve(L1L2$IM + diag(1/(sds^2))) %*%
-          (L1L2$gradient - ((estimated_item[i,]-0)/(sds^2)))
+      # IM[index,index] <- L1L2$IM
+      if(model== 1){
+        diff <- as.vector(
+          solve(L1L2$IM[-1,-1] + diag(1/(sds^2))) %*%
+            (L1L2$gradient[-1] - ((estimated_item[i,-1]-0)/(sds^2)))
         )
-      estimated_item[i,] <- estimated_item[i,] + diff * contrast_m[i,]
+        estimated_item[i,-1] <- estimated_item[i,-1] + diff * contrast_m[i,-1]
+      } else if(model == 2){
+        diff <- as.vector(
+          solve(L1L2$IM + diag(c(0, 1/(sds^2)))) %*%
+            (L1L2$gradient - ((estimated_item[i,]-0)/c(1,sds^2)))
+        )
+        estimated_item[i,] <- estimated_item[i,] + diff * contrast_m[i,]
+      }
+
     }
     if(max(abs(estimated_item - item)) < threshold | iter > max_iter) break
 
@@ -205,7 +214,7 @@ L1L2_lsirm <- function(e.response, par, grid){
 #'
 #' plot.lsirm(fit.drv)
 #' }
-lsirm <- function(data, dimension = 3, range = c(-4,4), q = 11, max_iter = 500, threshold = 0.001){
+lsirm <- function(data, dimension = 3, model=1,range = c(-4,4), q = 11, max_iter = 500, threshold = 0.001){
   args_list <- as.list(environment())
 
   x <- seq(range[1], range[2], length.out=q)
@@ -219,9 +228,9 @@ lsirm <- function(data, dimension = 3, range = c(-4,4), q = 11, max_iter = 500, 
   nitem <- ncol(data)
   # initial_item <- matrix(rep(c(1,0,0), nitem), nrow = nitem, byrow = TRUE)
   set.seed(1)
-  initial_item <- cbind(0, matrix(rnorm(nitem*2,0,.1), nrow = nitem))
+  initial_item <- cbind(1, 0, matrix(rnorm(nitem*2,0,.1), nrow = nitem))
   contrast_m <- matrix(1, nrow = nrow(initial_item), ncol = ncol(initial_item))
-  contrast_m[,2:dimension][upper.tri(contrast_m[,2:dimension])] <- 0
+  contrast_m[,3:dimension][upper.tri(contrast_m[,3:dimension])] <- 0
   initial_item <- initial_item * contrast_m
 
   iter <- 0
@@ -240,9 +249,9 @@ lsirm <- function(data, dimension = 3, range = c(-4,4), q = 11, max_iter = 500, 
     # sds[-1] <- sds[2]/sds[1]
     sds[1] <- 1
 
-    M <- Mstep(E, initial_item, contrast_m, sds)
+    M <- Mstep(E, initial_item, contrast_m, sds, model=model)
 
-    M[[1]] <- sweep(M[[1]], 2, factor_means, FUN = "-")
+    M[[1]][,-1] <- sweep(M[[1]][,-1], 2, factor_means, FUN = "-")
     M[[1]][which(contrast_m==0)] <- 0
     # M[[1]] <- sweep(M[[1]], 2, old_sds/sds, FUN = "*")
     # M[,1] <- M[,1]/sds[1]
@@ -319,7 +328,7 @@ plot.lsirm <- function(item, range=c(-2.5, 2.5), ls_positions=NULL, gamma=NULL){
   if(is.null(rownames(item))){
     rownames(item) <- paste0("Q", 1:nrow(item))
   }
-  df <- as.data.frame(item[,-1])
+  df <- as.data.frame(item[,-(1:2)])
   colnames(df) <- c("Dim1", "Dim2")
   df$Label <- rownames(df)
 

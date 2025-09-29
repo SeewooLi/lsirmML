@@ -30,10 +30,10 @@ NumericVector P_lsirm_cpp(NumericMatrix theta, NumericVector param) {
   NumericVector result(n);
 
   for (int i = 0; i < n; i++) {
-    double first = theta(i, 0) - param[0];
+    double first = param[0] * theta(i, 0) - param[1];
     double sumsq = 0.0;
     for (int j = 1; j < m; j++) {
-      double diff = theta(i, j) - param[j];
+      double diff = theta(i, j) - param[j+1];
       sumsq += diff * diff;
     }
     double eta = first - std::sqrt(sumsq);
@@ -70,10 +70,10 @@ Rcpp::NumericMatrix llik_cpp(const Rcpp::IntegerVector& data,
   // loop over grid points
   for (int m = 0; m < M; m++) {
     // compute p(m | item) once
-    double first = grid(m, 0) - item[0];
+    double first = item[0] * grid(m, 0) - item[1];
     double sumsq = 0.0;
     for (int j = 1; j < d; j++) {
-      double diff = grid(m, j) - item[j];
+      double diff = grid(m, j) - item[j+1];
       sumsq += diff * diff;
     }
     double eta = first - std::sqrt(sumsq);
@@ -235,26 +235,29 @@ List L1L2_lsirm_cpp(NumericMatrix e_response,
   NumericVector p0 = P_lsirm_cpp(grid, par);
 
   // compute eta_par = (grid[,-1] - par[-1]) / sqrt(rowSums(...))
-  NumericMatrix eta_par(M, d);
+  NumericMatrix eta_par(M, d+1);
   for (int i = 0; i < M; i++) {
     double sumsq = 0.0;
     for (int j = 1; j < d; j++) {
-      eta_par(i, j) = grid(i, j) - par[j];
-      sumsq += eta_par(i, j) * eta_par(i, j);
+      eta_par(i, j+1) = grid(i, j) - par[j+1];
+      sumsq += eta_par(i, j+1) * eta_par(i, j+1);
     }
     double norm = std::sqrt(sumsq);
     for (int j = 1; j < d; j++) {
-      if (norm > 0) eta_par(i, j) /= norm;
-      else eta_par(i, j) = 0.0;
+      if (norm > 0) eta_par(i, j+1) /= norm;
+      else eta_par(i, j+1) = 0.0;
     }
   }
   // prepend -1 in first column
-  for (int i = 0; i < M; i++) eta_par(i, 0) = -1.0;
+  for (int i = 0; i < M; i++){
+    eta_par(i, 0) = grid(i, 0);
+    eta_par(i, 1) = -1.0;
+  }
 
   // gradient: colSums(eta_par * (e_response[,2] - f*p0))
   int ncol_er = e_response.ncol();
-  NumericVector gradient(d);
-  for (int j = 0; j < d; j++) {
+  NumericVector gradient(d+1);
+  for (int j = 0; j < d+1; j++) {
     double s = 0.0;
     for (int i = 0; i < M; i++) {
       double val = 0.0;
@@ -265,11 +268,11 @@ List L1L2_lsirm_cpp(NumericMatrix e_response,
   }
 
   // information matrix: t(eta_par) %*% diag(f*p0*(1-p0)) %*% eta_par
-  NumericMatrix IM(d, d);
+  NumericMatrix IM(d+1, d+1);
   for (int i = 0; i < M; i++) {
     double w = f[i] * p0[i] * (1.0 - p0[i]);
-    for (int r = 0; r < d; r++) {
-      for (int c = 0; c < d; c++) {
+    for (int r = 0; r < d+1; r++) {
+      for (int c = 0; c < d+1; c++) {
         IM(r, c) += eta_par(i, r) * w * eta_par(i, c);
       }
     }
