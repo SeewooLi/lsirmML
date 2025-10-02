@@ -26,8 +26,8 @@ llik <- function(data, theta, item){
 #' @export
 #'
 #' @examples
-data_generation <- function(seed = 1, N, nitem=NULL, gamma = 0.5, item=NULL){
-  dimension <- 3
+data_generation <- function(seed = 1, N, nitem=NULL, gamma = 0.5, item=NULL, dimension=3){
+  if(!is.null(item))dimension <- ncol(item)
   theta <- mvtnorm::rmvnorm(N,
                             mean = rep(0, dimension),
                             sigma = diag(c(1,rep(gamma^2, dimension-1))))
@@ -217,7 +217,7 @@ L1L2_lsirm <- function(e.response, par, grid){
 lsirm <- function(data, dimension = 3, model=1,range = c(-4,4), q = 11, max_iter = 500, threshold = 0.001){
   args_list <- as.list(environment())
 
-  ranges <- lapply(c(1,0.8,0.8), function(sd) range * sd)
+  ranges <- lapply(c(1,rep(0.8, dimension-1)), function(sd) range * sd)
   grid_list <- lapply(ranges, function(r) seq(r[1], r[2], length.out = q))
   grid <- as.matrix(do.call(expand.grid, grid_list))
 
@@ -229,9 +229,9 @@ lsirm <- function(data, dimension = 3, model=1,range = c(-4,4), q = 11, max_iter
   nitem <- ncol(data)
   # initial_item <- matrix(rep(c(1,0,0), nitem), nrow = nitem, byrow = TRUE)
   set.seed(1)
-  initial_item <- cbind(1, 0, matrix(rnorm(nitem*2,0,.1), nrow = nitem))
+  initial_item <- cbind(1, 0, matrix(rnorm(nitem*(dimension-1),0,.1), nrow = nitem))
   contrast_m <- matrix(1, nrow = nrow(initial_item), ncol = ncol(initial_item))
-  contrast_m[,3:dimension][upper.tri(contrast_m[,3:dimension])] <- 0
+  contrast_m[,3:dimension+1][upper.tri(contrast_m[,3:dimension+1])] <- 0
   initial_item <- initial_item * contrast_m
 
   iter <- 0
@@ -252,14 +252,15 @@ lsirm <- function(data, dimension = 3, model=1,range = c(-4,4), q = 11, max_iter
 
     M <- Mstep(E, initial_item, contrast_m, sds, model=model)
 
-    M[[1]][,-1] <- sweep(M[[1]][,-1], 2, factor_means, FUN = "-")
+    M[[1]][,2] <- M[[1]][,2] - factor_means[1] * M[[1]][,1]
+    M[[1]][,-(1:2)] <- sweep(M[[1]][,-(1:2)], 2, factor_means[-1], FUN = "-")
     M[[1]][which(contrast_m==0)] <- 0
     # M[[1]] <- sweep(M[[1]], 2, old_sds/sds, FUN = "*")
     # M[,1] <- M[,1]/sds[1]
 
     # EM_history[[iter]] <- M[[1]]
 
-    ranges <- lapply(c(1,0.8,0.8)*sds, function(sd) range * sd)
+    ranges <- lapply(c(1,rep(0.8, dimension-1))*sds, function(sd) range * sd)
     grid_list <- lapply(ranges, function(r) seq(r[1], r[2], length.out = q))
     grid <- as.matrix(do.call(expand.grid, grid_list))
 
