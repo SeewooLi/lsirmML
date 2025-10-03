@@ -7,6 +7,7 @@
 lsirm(
   data,
   dimension = 3,
+  model = 1,
   range = c(-4, 4),
   q = 11,
   max_iter = 500,
