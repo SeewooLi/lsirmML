@@ -214,7 +214,14 @@ L1L2_lsirm <- function(e.response, par, grid){
 #'
 #' plot.lsirm(fit.drv)
 #' }
-lsirm <- function(data, dimension = 3, model=1,range = c(-4,4), q = 11, max_iter = 500, threshold = 0.001){
+lsirm <- function(data,
+                  dimension = 3,
+                  model=1,
+                  range = c(-4,4),
+                  q = 11,
+                  max_iter = 500,
+                  threshold = 0.001,
+                  contrast_m=NULL){
   args_list <- as.list(environment())
 
   ranges <- lapply(c(1,rep(0.8, dimension-1)), function(sd) range * sd)
@@ -230,8 +237,11 @@ lsirm <- function(data, dimension = 3, model=1,range = c(-4,4), q = 11, max_iter
   # initial_item <- matrix(rep(c(1,0,0), nitem), nrow = nitem, byrow = TRUE)
   set.seed(1)
   initial_item <- cbind(1, 0, matrix(rnorm(nitem*(dimension-1),0,.1), nrow = nitem))
-  contrast_m <- matrix(1, nrow = nrow(initial_item), ncol = ncol(initial_item))
-  contrast_m[,3:(dimension+1)][upper.tri(contrast_m[,3:(dimension+1)])] <- 0
+  if(is.null(contrast_m)){
+    contrast_m <- matrix(1, nrow = nrow(initial_item), ncol = ncol(initial_item))
+    contrast_m[,3:(dimension+1)][upper.tri(contrast_m[,3:(dimension+1)])] <- 0
+  }
+
   initial_item <- initial_item * contrast_m
 
   iter <- 0

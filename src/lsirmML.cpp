@@ -123,76 +123,86 @@ Rcpp::List Estep_cpp(const Rcpp::IntegerMatrix& data,
   int M = grid.nrow();
 
   // log-likelihood accumulator
-  Rcpp::NumericMatrix posterior_loglik(N, M);
+  std::vector<double> posterior_loglik_vec(N * M, 0.0);
 
   // accumulate over items
   for (int i = 0; i < I; i++) {
-    Rcpp::IntegerVector data_col = data(_, i);
-    Rcpp::NumericVector item_row = item(i, _);
-    Rcpp::NumericMatrix ll = llik_cpp(data_col, grid, item_row); // N×M
+    IntegerVector data_col = data(_, i);
+    NumericVector item_row = item(i, _);
+    NumericMatrix ll = llik_cpp(data_col, grid, item_row); // N x M (R object)
 
     #pragma omp parallel for
     for (int n = 0; n < N; n++) {
       for (int m = 0; m < M; m++) {
-        posterior_loglik(n, m) += ll(n, m);
+        posterior_loglik_vec[n * M + m] += ll(n, m);
       }
     }
   }
 
   // precompute log(prior)
-  Rcpp::NumericVector log_prior(M);
-  for (int m = 0; m < M; m++) log_prior[m] = std::log(prior[m]);
+  std::vector<double> posterior_vec(N * M, 0.0);
+  std::vector<double> freq_vec(M, 0.0);
 
-  // posterior = exp(loglik + log(prior)) + normalization
-  Rcpp::NumericMatrix posterior(N, M);
+  std::vector<double> log_prior_vec(M);
+  for (int m = 0; m < M; ++m) log_prior_vec[m] = std::log(prior[m]);
+
   #pragma omp parallel for
   for (int n = 0; n < N; n++) {
     double rowsum = 0.0;
     for (int m = 0; m < M; m++) {
-      double val = std::exp(posterior_loglik(n, m) + log_prior[m]);
-      posterior(n, m) = val;
+      double val = std::exp(posterior_loglik_vec[n * M + m] + log_prior_vec[m]);
+      posterior_vec[n * M + m] = val;
       rowsum += val;
     }
     if (rowsum > 0) {
       double inv = 1.0 / rowsum;
-      for (int m = 0; m < M; m++) posterior(n, m) *= inv;
+      for (int m = 0; m < M; m++) posterior_vec[n * M + m] *= inv;
     }
   }
 
   // expected response frequencies
   int categ = max_data(data) + 1;
-  Rcpp::NumericVector e_response(I * M * categ);
+  std::vector<double> e_response_vec(I * M * categ, 0.0);
 
   #pragma omp parallel
   {
-    Rcpp::NumericVector e_private(I * M * categ); // thread-local accumulator
+    std::vector<double> e_private(I * M * categ, 0.0);
 
-    #pragma omp for nowait
+  #pragma omp for nowait
     for (int n = 0; n < N; n++) {
       for (int i = 0; i < I; i++) {
         int val = data(n, i);
         if (val == NA_INTEGER) continue;
         for (int m = 0; m < M; m++) {
-          e_private[i + I * m + I * M * val] += posterior(n, m);
+          int idx = i + I * m + I * M * val;
+          e_private[idx] += posterior_vec[n * M + m];
         }
       }
     }
 
     #pragma omp critical
     {
-    for (int idx = 0; idx < e_response.size(); idx++) {
-      e_response[idx] += e_private[idx];
+      for (size_t idx = 0; idx < e_response_vec.size(); ++idx) {
+        e_response_vec[idx] += e_private[idx];
       }
     }
   }
 
   // freq = column sums
-  Rcpp::NumericVector freq(M);
   #pragma omp parallel for
   for (int m = 0; m < M; m++) {
     double s = 0.0;
-    for (int n = 0; n < N; n++) s += posterior(n, m);
-    freq[m] = s;
+    for (int n = 0; n < N; n++) s += posterior_vec[n * M + m];
+    freq_vec[m] = s;
+  }
+
+  Rcpp::NumericVector e_response_r(e_response_vec.begin(), e_response_vec.end());
+  Rcpp::NumericVector freq_r(freq_vec.begin(), freq_vec.end());
+  Rcpp::NumericMatrix posterior_r(N, M);
+  for (int n = 0; n < N; n++) {
+    for (int m = 0; m < M; m++) {
+      posterior_r(n, m) = posterior_vec[n * M + m];
+    }
   }
 
   // logL
@@ -200,26 +210,29 @@ Rcpp::List Estep_cpp(const Rcpp::IntegerMatrix& data,
   #pragma omp parallel for reduction(+:total_logL)
   for (int n = 0; n < N; n++) {
     for (int m = 0; m < M; m++) {
-      double val = posterior(n, m);
+      double val = posterior_vec[n * M + m];
       if (val > 0) {
-        total_logL += posterior_loglik(n, m) * val;
-        total_logL += val * log_prior[m];
+        total_logL += posterior_loglik_vec[n * M + m] * val;
+        total_logL += val * log_prior_vec[m];
         total_logL -= val * std::log(val);
       }
     }
   }
 
+
   // Ak
-  double total_freq = std::accumulate(freq.begin(), freq.end(), 0.0);
+  double total_freq = std::accumulate(freq_r.begin(), freq_r.end(), 0.0);
   Rcpp::NumericVector Ak(M);
   if (total_freq > 0) {
-    for (int m = 0; m < M; m++) Ak[m] = freq[m] / total_freq;
+    for (int m = 0; m < M; m++) Ak[m] = freq_r[m] / total_freq;
   }
 
+
+
   return Rcpp::List::create(
-    Rcpp::_["posterior"]  = posterior,
-    Rcpp::_["freq"]       = freq,
-    Rcpp::_["e.response"] = e_response,
+    Rcpp::_["posterior"]  = posterior_r,
+    Rcpp::_["freq"]       = freq_r,
+    Rcpp::_["e.response"] = e_response_r,
     Rcpp::_["grid"]       = grid,
     Rcpp::_["prior"]      = prior,
     Rcpp::_["logL"]       = total_logL,
