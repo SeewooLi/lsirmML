@@ -221,7 +221,8 @@ lsirm <- function(data,
                   q = 11,
                   max_iter = 500,
                   threshold = 0.001,
-                  contrast_m=NULL){
+                  contrast_m=NULL,
+                  initial_item=NULL){
   args_list <- as.list(environment())
 
   ranges <- lapply(c(1,rep(0.8, dimension-1)), function(sd) range * sd)
@@ -234,14 +235,16 @@ lsirm <- function(data,
   prior <- prior/sum(prior)
   sds <- rep(1, dimension)
   nitem <- ncol(data)
-  # initial_item <- matrix(rep(c(1,0,0), nitem), nrow = nitem, byrow = TRUE)
+
   set.seed(1)
-  initial_item <- cbind(1, 0, matrix(rnorm(nitem*(dimension-1),0,.1), nrow = nitem))
+
   if(is.null(contrast_m)){
-    contrast_m <- matrix(1, nrow = nrow(initial_item), ncol = ncol(initial_item))
+    contrast_m <- matrix(1, nrow = nitem, ncol = (dimension+1))
     contrast_m[,3:(dimension+1)][upper.tri(contrast_m[,3:(dimension+1)])] <- 0
   }
-
+  if(is.null(initial_item)){
+    initial_item <- cbind(1, 0, matrix(rnorm(nitem*(dimension-1),0,.1), nrow = nitem))
+  }
   initial_item <- initial_item * contrast_m
 
   iter <- 0
@@ -309,7 +312,8 @@ lsirm <- function(data,
     theta_se = theta_se,
     logL= E$logL,
     f_cov = diag(sds^2),
-    args_list = args_list
+    args_list = args_list,
+    contrast_m = contrast_m
   ))
 }
 
@@ -340,7 +344,7 @@ plot.lsirm <- function(item, range=c(-2.5, 2.5), ls_positions=NULL, gamma=NULL){
   if(is.null(rownames(item))){
     rownames(item) <- paste0("Q", 1:nrow(item))
   }
-  df <- as.data.frame(item[,-(1:2)])
+  df <- as.data.frame(item[,-c(1,2)])
   colnames(df) <- c("Dim1", "Dim2")
   df$Label <- rownames(df)
 

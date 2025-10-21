@@ -11,7 +11,9 @@ lsirm(
   range = c(-4, 4),
   q = 11,
   max_iter = 500,
-  threshold = 0.001
+  threshold = 0.001,
+  contrast_m = NULL,
+  initial_item = NULL
 )
 }
 \arguments{
