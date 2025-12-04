@@ -317,7 +317,82 @@ lsirm <- function(data,
   ))
 }
 
+#' Title
+#'
+#' @param data
+#' @param item
+#'
+#' @returns
+#' @export
+#'
+#' @examples
+eap_score <- function(data, item, q=11){
+  x <- seq(-4, 4, length.out=q)
+  grid_list <- replicate(3, x, simplify = FALSE)
+  grid <- as.matrix(do.call(expand.grid, grid_list))
 
+  prior <- mvtnorm::dmvnorm(grid,
+                            mean = rep(0, 3),
+                            sigma = diag(3)
+  )
+  prior <- prior/sum(prior)
+
+  E <- Estep(matrix(data, nrow=1), item, grid, prior)
+
+  factor_means <- as.vector(E$Ak%*%E$grid)
+  cov_mat <- t(E$grid) %*% sweep(E$grid, 1, E$Ak, FUN = "*") - factor_means %*% t(factor_means)
+
+  return(list(
+    theta = factor_means,
+    se = cov_mat,
+    grids = E$grid,
+    heights = E$Ak
+  ))
+}
+
+#' Title
+#'
+#' @param data
+#' @param item
+#'
+#' @returns
+#' @export
+#'
+#' @examples
+map_score <- function(data, item){
+  theta <- c(0,0,0)
+
+  iter <- 0
+  repeat{
+    iter <- iter + 1
+
+    eta0 <- sweep(-item, MARGIN = 2, STATS = theta, FUN = "+")
+    dist <- sqrt(rowSums(eta0[,-1]^2))
+    eta <- eta0[,1] - dist
+
+
+    p0 <- 1/(1+exp(- eta ))
+
+    eta1 <- cbind(1, sweep(-eta0[,-1], MARGIN = 1, STATS = 1/dist, FUN = "*"))
+
+    l1 <- as.vector((data - p0) %*% eta1)
+
+    H <- t(eta1) %*% diag(p0 * (1 - p0)) %*% eta1
+    # diff <- l1[1] / H[1,1]
+    diff <- as.vector((l1 - (theta - 0)) %*% solve(H + diag(3)))
+
+    # theta[1] <- theta[1] + diff/2
+    theta <- theta + diff/2
+
+    if(sum(abs(diff)) < 0.000001) break
+  }
+
+  return(list(
+    theta = theta,
+    se = solve(H + diag(3)),
+    iter = iter
+  ))
+}
 
 ################################################################################
 # PLOTTING
