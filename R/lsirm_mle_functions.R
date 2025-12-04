@@ -1,6 +1,10 @@
 # probability of endorsement
 P_lsirm <- function(theta, param){
-  eta <- sweep(theta, MARGIN = 2, STATS = param, FUN = "-")
+  if(is.matrix(theta)){
+    eta <- sweep(theta, MARGIN = 2, STATS = param, FUN = "-")
+  }else {
+    eta <- sweep(-param, MARGIN = 2, STATS = theta, FUN = "+")
+  }
   eta <- eta[,1] - sqrt(rowSums(eta[,-1]^2))
   return(1/(1+exp(- eta )))
 }
