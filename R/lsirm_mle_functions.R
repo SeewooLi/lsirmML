@@ -388,7 +388,7 @@ map_score <- function(data, item){
     # theta[1] <- theta[1] + diff/2
     theta <- theta + diff/2
 
-    if(sum(abs(diff)) < 0.000001) break
+    if(sum(abs(diff)) < 0.000001 | iter > 50) break
   }
 
   return(list(
