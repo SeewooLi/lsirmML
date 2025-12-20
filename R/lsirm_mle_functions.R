@@ -113,7 +113,7 @@ Estep <- function(data, item, grid, prior = NULL){
 Mstep <- function(E, item, contrast_m, sds, max_iter = 5, threshold = 0.000001, model){
   estimated_item <- item
 
-  IM <- matrix(0, nrow = length(item), ncol = length(item))
+  IM <- list()
 
   iter <- 0
   repeat{
@@ -136,7 +136,7 @@ Mstep <- function(E, item, contrast_m, sds, max_iter = 5, threshold = 0.000001, 
         )
         estimated_item[i,] <- estimated_item[i,] + diff * contrast_m[i,]
       }
-
+      IM[[i]] <- L1L2$IM + diag(c(0, 1/(sds^2)))
     }
     if(max(abs(estimated_item - item)) < threshold | iter > max_iter) break
 
@@ -165,6 +165,30 @@ L1L2_lsirm <- function(e.response, par, grid){
     gradient = gradient,
     IM = IM
   ))
+}
+
+# Louis's (1982) correction for s.e.
+se_correction <- function(e.response, quad, par_est, se_list){
+  nitem <- nrow(par_est)
+  se <- list()
+  for(item in 1:nitem){
+    f <- rowSums(e.response[item,,])
+    # cnts <- colSums(e.response[item,,])
+    p0 <- P_lsirm(quad, par_est[item,-1])
+
+    eta_par <- sweep(quad[,-1], MARGIN = 2, STATS = par_est[item,-(1:2)], FUN = "-")
+    eta_par <- sweep(eta_par, MARGIN = 1, STATS = sqrt(rowSums(eta_par^2)), FUN = "/")
+    eta_par <- cbind(-1, eta_par)
+    eta_par[is.na(eta_par)] <- 0
+
+
+    E.sst <- t(eta_par) %*% diag((e.response[item,,2] - f * p0)^2) %*% eta_par
+
+    grad <- colSums(sweep(eta_par, 1, e.response[item,,2] - f * p0, "*"), na.rm = TRUE)
+
+    se[[item]] <- se_list[[item]][-1,-1] - E.sst
+  }
+  return(se)
 }
 
 #' ML estimation of LSIRM
@@ -303,7 +327,7 @@ lsirm <- function(data,
   theta_se <- sqrt(E$posterior%*%(E$grid^2)-theta^2)
   return(list(
     par_est = initial_item,
-    IM = M[[2]],
+    IM = se_correction(E$e.response, grid, initial_item, M[[2]]),
     # EM_history = EM_history,
     fk=E$freq,
     iter=iter,
@@ -317,7 +341,8 @@ lsirm <- function(data,
     logL= E$logL,
     f_cov = diag(sds^2),
     args_list = args_list,
-    contrast_m = contrast_m
+    contrast_m = contrast_m,
+    M = M[[2]]
   ))
 }
 
