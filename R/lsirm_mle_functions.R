@@ -1,8 +1,10 @@
 # probability of endorsement
-P_lsirm <- function(theta, param){
+P_lsirm <- function(theta, param, a=1){
   if(is.matrix(theta)){
+    theta[,1] <- theta[,1] * a
     eta <- sweep(theta, MARGIN = 2, STATS = param, FUN = "-")
   }else {
+    theta[1] <- theta[1] * a
     eta <- sweep(-param, MARGIN = 2, STATS = theta, FUN = "+")
   }
   eta <- eta[,1] - sqrt(rowSums(eta[,-1]^2))
@@ -168,17 +170,18 @@ L1L2_lsirm <- function(e.response, par, grid){
 }
 
 # Louis's (1982) correction for s.e.
-se_correction <- function(e.response, quad, par_est, se_list){
+se_correction <- function(e.response, quad, par_est, se_list, model){
   nitem <- nrow(par_est)
   se <- list()
+  se_mat <- list()
   for(item in 1:nitem){
     f <- rowSums(e.response[item,,])
     # cnts <- colSums(e.response[item,,])
-    p0 <- P_lsirm(quad, par_est[item,-1])
+    p0 <- P_lsirm(quad, par_est[item,-1], par_est[item,1])
 
     eta_par <- sweep(quad[,-1], MARGIN = 2, STATS = par_est[item,-(1:2)], FUN = "-")
     eta_par <- sweep(eta_par, MARGIN = 1, STATS = sqrt(rowSums(eta_par^2)), FUN = "/")
-    eta_par <- cbind(-1, eta_par)
+    eta_par <- cbind(quad[,1], -1, eta_par)
     eta_par[is.na(eta_par)] <- 0
 
 
@@ -186,9 +189,19 @@ se_correction <- function(e.response, quad, par_est, se_list){
 
     grad <- colSums(sweep(eta_par, 1, e.response[item,,2] - f * p0, "*"), na.rm = TRUE)
 
-    se[[item]] <- se_list[[item]][-1,-1] - E.sst
+    if(model == 1){
+      se[[item]] <- se_list[[item]][-1,-1] - E.sst[-1,-1]
+      se_list[[item]] <- se_list[[item]][-1,-1]
+    }else if(model == 2){
+      se[[item]] <- se_list[[item]] - E.sst
+    }
+    se_mat[[item]] <- solve(se[[item]])
   }
-  return(se)
+  return(list(
+    complete = se_list,
+    observed = se,
+    se_mat_obs = se_mat
+    ))
 }
 
 #' ML estimation of LSIRM
@@ -327,7 +340,7 @@ lsirm <- function(data,
   theta_se <- sqrt(E$posterior%*%(E$grid^2)-theta^2)
   return(list(
     par_est = initial_item,
-    IM = se_correction(E$e.response, grid, initial_item, M[[2]]),
+    IM = se_correction(E$e.response, grid, initial_item, M[[2]], model),
     # EM_history = EM_history,
     fk=E$freq,
     iter=iter,
@@ -341,8 +354,7 @@ lsirm <- function(data,
     logL= E$logL,
     f_cov = diag(sds^2),
     args_list = args_list,
-    contrast_m = contrast_m,
-    M = M[[2]]
+    contrast_m = contrast_m
   ))
 }
 
