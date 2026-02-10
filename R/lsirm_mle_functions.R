@@ -1,6 +1,12 @@
 # probability of endorsement
-P_lsirm <- function(theta, param){
-  eta <- sweep(theta, MARGIN = 2, STATS = param, FUN = "-")
+P_lsirm <- function(theta, param, a=1){
+  if(is.matrix(theta)){
+    theta[,1] <- theta[,1] * a
+    eta <- sweep(theta, MARGIN = 2, STATS = param, FUN = "-")
+  }else {
+    theta[1] <- theta[1] * a
+    eta <- sweep(-param, MARGIN = 2, STATS = theta, FUN = "+")
+  }
   eta <- eta[,1] - sqrt(rowSums(eta[,-1]^2))
   return(1/(1+exp(- eta )))
 }
@@ -109,7 +115,7 @@ Estep <- function(data, item, grid, prior = NULL){
 Mstep <- function(E, item, contrast_m, sds, max_iter = 5, threshold = 0.000001, model){
   estimated_item <- item
 
-  IM <- matrix(0, nrow = length(item), ncol = length(item))
+  IM <- list()
 
   iter <- 0
   repeat{
@@ -132,7 +138,7 @@ Mstep <- function(E, item, contrast_m, sds, max_iter = 5, threshold = 0.000001, 
         )
         estimated_item[i,] <- estimated_item[i,] + diff * contrast_m[i,]
       }
-
+      IM[[i]] <- L1L2$IM + diag(c(0, 1/(sds^2)))
     }
     if(max(abs(estimated_item - item)) < threshold | iter > max_iter) break
 
@@ -161,6 +167,41 @@ L1L2_lsirm <- function(e.response, par, grid){
     gradient = gradient,
     IM = IM
   ))
+}
+
+# Louis's (1982) correction for s.e.
+se_correction <- function(e.response, quad, par_est, se_list, model){
+  nitem <- nrow(par_est)
+  se <- list()
+  se_mat <- list()
+  for(item in 1:nitem){
+    f <- rowSums(e.response[item,,])
+    # cnts <- colSums(e.response[item,,])
+    p0 <- P_lsirm(quad, par_est[item,-1], par_est[item,1])
+
+    eta_par <- sweep(quad[,-1], MARGIN = 2, STATS = par_est[item,-(1:2)], FUN = "-")
+    eta_par <- sweep(eta_par, MARGIN = 1, STATS = sqrt(rowSums(eta_par^2)), FUN = "/")
+    eta_par <- cbind(quad[,1], -1, eta_par)
+    eta_par[is.na(eta_par)] <- 0
+
+
+    E.sst <- t(eta_par) %*% diag((e.response[item,,2] - f * p0)^2) %*% eta_par
+
+    grad <- colSums(sweep(eta_par, 1, e.response[item,,2] - f * p0, "*"), na.rm = TRUE)
+
+    if(model == 1){
+      se[[item]] <- se_list[[item]][-1,-1] - E.sst[-1,-1]
+      se_list[[item]] <- se_list[[item]][-1,-1]
+    }else if(model == 2){
+      se[[item]] <- se_list[[item]] - E.sst
+    }
+    se_mat[[item]] <- solve(se[[item]])
+  }
+  return(list(
+    complete = se_list,
+    observed = se,
+    se_mat_obs = se_mat
+    ))
 }
 
 #' ML estimation of LSIRM
@@ -299,7 +340,7 @@ lsirm <- function(data,
   theta_se <- sqrt(E$posterior%*%(E$grid^2)-theta^2)
   return(list(
     par_est = initial_item,
-    IM = M[[2]],
+    IM = se_correction(E$e.response, grid, initial_item, M[[2]], model),
     # EM_history = EM_history,
     fk=E$freq,
     iter=iter,
@@ -317,7 +358,82 @@ lsirm <- function(data,
   ))
 }
 
+#' Title
+#'
+#' @param data
+#' @param item
+#'
+#' @returns
+#' @export
+#'
+#' @examples
+eap_score <- function(data, item, q=11){
+  x <- seq(-4, 4, length.out=q)
+  grid_list <- replicate(3, x, simplify = FALSE)
+  grid <- as.matrix(do.call(expand.grid, grid_list))
 
+  prior <- mvtnorm::dmvnorm(grid,
+                            mean = rep(0, 3),
+                            sigma = diag(3)
+  )
+  prior <- prior/sum(prior)
+
+  E <- Estep(matrix(data, nrow=1), item, grid, prior)
+
+  factor_means <- as.vector(E$Ak%*%E$grid)
+  cov_mat <- t(E$grid) %*% sweep(E$grid, 1, E$Ak, FUN = "*") - factor_means %*% t(factor_means)
+
+  return(list(
+    theta = factor_means,
+    se = cov_mat,
+    grids = E$grid,
+    heights = E$Ak
+  ))
+}
+
+#' Title
+#'
+#' @param data
+#' @param item
+#'
+#' @returns
+#' @export
+#'
+#' @examples
+map_score <- function(data, item){
+  theta <- c(0,0,0)
+
+  iter <- 0
+  repeat{
+    iter <- iter + 1
+
+    eta0 <- sweep(-item, MARGIN = 2, STATS = theta, FUN = "+")
+    dist <- sqrt(rowSums(eta0[,-1]^2))
+    eta <- eta0[,1] - dist
+
+
+    p0 <- 1/(1+exp(- eta ))
+
+    eta1 <- cbind(1, sweep(-eta0[,-1], MARGIN = 1, STATS = 1/dist, FUN = "*"))
+
+    l1 <- as.vector((data - p0) %*% eta1)
+
+    H <- t(eta1) %*% diag(p0 * (1 - p0)) %*% eta1
+    # diff <- l1[1] / H[1,1]
+    diff <- as.vector((l1 - (theta - 0)) %*% solve(H + diag(3)))
+
+    # theta[1] <- theta[1] + diff/2
+    theta <- theta + diff/2
+
+    if(sum(abs(diff)) < 0.000001 | iter > 50) break
+  }
+
+  return(list(
+    theta = theta,
+    se = solve(H + diag(3)),
+    iter = iter
+  ))
+}
 
 ################################################################################
 # PLOTTING
