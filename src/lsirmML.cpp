@@ -23,21 +23,31 @@ int max_data(const IntegerMatrix& data) {
 
 
 // [[Rcpp::export]]
-NumericVector P_lsirm_cpp(NumericMatrix theta, NumericVector param) {
+NumericVector P_lsirm_cpp(NumericMatrix theta,
+                          double slope,
+                          NumericVector threshold,
+                          NumericVector coord) {
   int n = theta.nrow();
   int m = theta.ncol();
+  int c = threshold.size();
 
-  NumericVector result(n);
+  NumericMatrix result(n, c + 1);
 
   for (int i = 0; i < n; i++) {
-    double first = param[0] * theta(i, 0) - param[1];
+    NumericVector c_prob(c + 1, 1.0);
     double sumsq = 0.0;
+
     for (int j = 1; j < m; j++) {
-      double diff = theta(i, j) - param[j+1];
+      double diff = theta(i, j) - coord[j-1];
       sumsq += diff * diff;
     }
-    double eta = first - std::sqrt(sumsq);
-    result[i] = 1.0 / (1.0 + std::exp(-eta));
+    double dist = std::sqrt(sumsq);
+
+    for (int k = 0; k < c; k++) {
+      c_prob[k + 1] = 1.0 / (1.0 + std::exp( - (slope * theta(i, 0) - threshold[k] - dist)));
+      result[i, k] = c_prob[k] - c_prob[k + 1];
+    }
+    result[i, c] = c_prob[c];
   }
 
   return result;
