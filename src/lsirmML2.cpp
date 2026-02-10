@@ -585,7 +585,7 @@ Rcpp::List L1L2_lsirm_cpp(const Rcpp::NumericMatrix& e_response,
         else {
           // derivative w.r.t. item location
           if (dist > 0) {
-            eta_par(p,k) = - (grid(m, p-n_item+1) - coord[p-n_item]) / dist;
+            eta_par(p,k) = (grid(m, p-n_item+1) - coord[p-n_item]) / dist;
           } else {
             eta_par(p,k) = 0.0;
           }
