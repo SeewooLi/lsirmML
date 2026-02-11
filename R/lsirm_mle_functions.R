@@ -123,7 +123,7 @@ Mstep <- function(E, item, contrast_m, sds, max_iter = 5, threshold = 0.000001, 
     for(i in 1:nrow(item)){
       # index <- (ncol(item)*i-(ncol(item)-1)):(ncol(item)*i)
 
-      L1L2 <- L1L2_lsirm_cpp(E$e.response[i,,], item[i,], E$grid)
+      L1L2 <- L1L2_lsirm_cpp(E$e.response[i,,], item, E$grid)
       # IM[index,index] <- L1L2$IM
       if(model== 1){
         diff <- as.vector(
@@ -137,6 +137,45 @@ Mstep <- function(E, item, contrast_m, sds, max_iter = 5, threshold = 0.000001, 
             (L1L2$gradient - ((estimated_item[i,]-0)/c(1,sds^2)))
         )
         estimated_item[i,] <- estimated_item[i,] + diff * contrast_m[i,]
+      }
+      IM[[i]] <- L1L2$IM + diag(c(0, 1/(sds^2)))
+    }
+    if(max(abs(estimated_item - item)) < threshold | iter > max_iter) break
+
+    item <- estimated_item
+  }
+
+  return(list(
+    estimated_item,
+    IM
+  ))
+}
+
+Mstep2 <- function(E, item, contrast_m, sds, max_iter = 5, threshold = 0.000001, model){
+  estimated_item <- item
+
+  IM <- list()
+
+  iter <- 0
+  repeat{
+    iter <- iter + 1
+    for(i in 1:nrow(item)){
+      # index <- (ncol(item)*i-(ncol(item)-1)):(ncol(item)*i)
+
+      L1L2 <- L1L2_lsirm_cpp(E$e.response[i,,], item[i,1:2], item[i,3:4], E$grid, 2)
+      # IM[index,index] <- L1L2$IM
+      if(model== 1){
+        diff <- as.vector(
+          solve(L1L2$IM[-1,-1] + diag(1/(sds^2))) %*%
+            (L1L2$gradient[-1] - ((estimated_item[i,-1]-0)/(sds^2)))
+        )
+        estimated_item[i,-1] <- estimated_item[i,-1] + diff * contrast_m[i,-1]
+      } else if(model == 2){
+        diff <- as.vector(
+          solve(L1L2$IM + diag(c(0, 1/(sds^2)))) %*%
+            (L1L2$gradient - ((estimated_item[i,]-0)/c(1,sds^2)))
+        )
+        estimated_item[i,] <- estimated_item[i,] + diff * contrast_m[i,] / 3
       }
       IM[[i]] <- L1L2$IM + diag(c(0, 1/(sds^2)))
     }
@@ -357,6 +396,161 @@ lsirm <- function(data,
     contrast_m = contrast_m
   ))
 }
+
+#' ML estimation of LSIRM
+#'
+#' @param data data matrix
+#' @param dimension the number of dimension (main + interaction). The default is 3.
+#' @param range range of the quadrature points
+#' @param q the number of quadrature points
+#' @param max_iter the maximum number of EM iteration
+#' @param threshold the threshold to determine the EM convergence
+#'
+#' @return
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#' ################################################################################
+#' # SIMULATION DATA
+#' ################################################################################
+#'
+#' # data generation
+#' dataset <- data_generation(seed = 1234,
+#'                            N = 2000,
+#'                            nitem = 10,
+#'                            gamma = 1.0)
+#'
+#' data <- dataset$data
+#' item <- dataset$item
+#' theta <- dataset$theta
+#'
+#' # model fitting
+#' fit <- lsirm(data,
+#'              max_iter = 200,
+#'              threshold = 0.001)
+#'
+#' # plotting
+#' plot.lsirm(item)
+#' plot.lsirm(fit$par_est)
+#' plot.lsirm(fit)
+#'
+#' plot(item[,1], fit$par_est[,1])
+#' abline(0,1)
+#'
+#' ################################################################################
+#' # DRV DATA
+#' ################################################################################
+#' drv_data <- read.table("drv_data.txt")
+#' fit.drv <- lsirm(drv_data,
+#'                  max_iter = 200,
+#'                  threshold = 0.001)
+#'
+#' plot.lsirm(fit.drv)
+#' }
+lsgrm <- function(data,
+                  dimension = 3,
+                  model=1,
+                  range = c(-4,4),
+                  q = 11,
+                  max_iter = 500,
+                  threshold = 0.001,
+                  contrast_m=NULL,
+                  initial_item=NULL){
+  args_list <- as.list(environment())
+
+  ranges <- lapply(c(1,rep(0.8, dimension-1)), function(sd) range * sd)
+  grid_list <- lapply(ranges, function(r) seq(r[1], r[2], length.out = q))
+  grid <- as.matrix(do.call(expand.grid, grid_list))
+
+  prior <- mvtnorm::dmvnorm(grid,
+                            mean = rep(0, dimension),
+                            sigma = diag(dimension))
+  prior <- prior/sum(prior)
+  sds <- rep(1, dimension)
+  nitem <- ncol(data)
+
+  set.seed(1)
+
+  if(is.null(contrast_m)){
+    contrast_m <- matrix(1, nrow = nitem, ncol = (dimension+1))
+    contrast_m[,3:(dimension+1)][upper.tri(contrast_m[,3:(dimension+1)])] <- 0
+  }
+  if(is.null(initial_item)){
+    initial_item <- cbind(1, 0, matrix(rnorm(nitem*(dimension-1),0,.1), nrow = nitem))
+  }
+  initial_item <- initial_item * contrast_m
+
+  iter <- 0
+  # EM_history <- list()
+  repeat{
+    iter <- iter + 1
+
+    E <- Estep_cpp(data, initial_item[,1:(ncol(initial_item)-dimension+1)], initial_item[,(ncol(initial_item)-1):ncol(initial_item)], grid, prior)
+    dim(E$e.response) <- c(nitem, nrow(grid), max(data, na.rm = TRUE) + 1)
+
+    old_sds <- sds
+    factor_means <- as.vector(E$Ak%*%E$grid)
+    cov_mat <- t(E$grid) %*% sweep(E$grid, 1, E$Ak, FUN = "*") - factor_means %*% t(factor_means)
+    sds <- sqrt(diag(cov_mat))
+    sds[-1] <- sqrt(mean(sds[-1]^2))
+    # sds[-1] <- sds[2]/sds[1]
+    sds[1] <- 1
+
+    M <- Mstep2(E, initial_item, contrast_m, sds, model=model)
+
+    M[[1]][,2] <- M[[1]][,2] - factor_means[1] * M[[1]][,1]
+    M[[1]][,-(1:2)] <- sweep(M[[1]][,-(1:2)], 2, factor_means[-1], FUN = "-")
+    M[[1]][which(contrast_m==0)] <- 0
+    # M[[1]] <- sweep(M[[1]], 2, old_sds/sds, FUN = "*")
+    # M[,1] <- M[,1]/sds[1]
+
+    # EM_history[[iter]] <- M[[1]]
+
+    ranges <- lapply(c(1,rep(0.8, dimension-1))*sds, function(sd) range * sd)
+    grid_list <- lapply(ranges, function(r) seq(r[1], r[2], length.out = q))
+    grid <- as.matrix(do.call(expand.grid, grid_list))
+
+    prior <- mvtnorm::dmvnorm(grid,
+                              mean = rep(0, dimension),
+                              sigma = diag(sds^2))
+    prior <- prior/sum(prior)
+
+    diff <- max(abs(initial_item - M[[1]]), na.rm = TRUE)
+
+    initial_item <- M[[1]]
+    message("\r","\r",
+            "EM cycle = ",iter,
+            ", gamma = ",round(sds[2], 2),
+            ", logL = ", sprintf("%.2f", E$logL),
+            ", Max-Change = ",sprintf("%.5f",diff),sep="",appendLF=FALSE)
+    flush.console()
+    if(diff < threshold | iter >= max_iter) break
+  }
+
+
+  theta <- E$posterior%*%E$grid
+  theta_se <- sqrt(E$posterior%*%(E$grid^2)-theta^2)
+  return(list(
+    par_est = initial_item,
+    IM = se_correction(E$e.response, grid, initial_item, M[[2]], model),
+    # EM_history = EM_history,
+    fk=E$freq,
+    iter=iter,
+    quad=grid,
+    diff=diff,
+    prior=E$prior,
+    posterior=E$posterior,
+    Ak=E$Ak,
+    theta = theta,
+    theta_se = theta_se,
+    logL= E$logL,
+    f_cov = diag(sds^2),
+    args_list = args_list,
+    contrast_m = contrast_m
+  ))
+}
+
 
 #' Title
 #'
