@@ -1,3 +1,12 @@
+count_cat <- function(x) length(unique(x))
+extract_cat <- function(x) sort(unique(x))
+
+reorder_vec <- function(x){
+  match(x, table = extract_cat(x))-1
+}
+
+reorder_mat <- function(x) apply(x, MARGIN = 2, FUN = reorder_vec)
+
 # probability of endorsement
 P_lsirm <- function(theta, param, a=1){
   if(is.matrix(theta)){
@@ -455,9 +464,11 @@ lsgrm <- function(data,
                   q = 11,
                   max_iter = 500,
                   threshold = 0.001,
-                  contrast_m=NULL,
+                  contrast_m = NULL,
                   initial_item=NULL){
   args_list <- as.list(environment())
+
+  data <- reorder_mat(as.matrix(data))
 
   ranges <- lapply(c(1,rep(0.8, dimension-1)), function(sd) range * sd)
   grid_list <- lapply(ranges, function(r) seq(r[1], r[2], length.out = q))
@@ -469,6 +480,7 @@ lsgrm <- function(data,
   prior <- prior/sum(prior)
   sds <- rep(1, dimension)
   nitem <- ncol(data)
+  n_thres <- max(data)
 
   set.seed(1)
 
@@ -477,7 +489,11 @@ lsgrm <- function(data,
     contrast_m[,3:(dimension+1)][upper.tri(contrast_m[,3:(dimension+1)])] <- 0
   }
   if(is.null(initial_item)){
-    initial_item <- cbind(1, 0, matrix(rnorm(nitem*(dimension-1),0,.1), nrow = nitem))
+    threshold_mat <- matrix(nrow=nitem, ncol=n_thres)
+    for(i in 1:nitem){
+      threshold_mat[i, 1:max(data[,i])] <- rnorm(max(data[,i]),0,.1)
+    }
+    initial_item <- cbind(1, threshold_mat, matrix(rnorm(nitem*(dimension-1),0,.1), nrow = nitem))
   }
   initial_item <- initial_item * contrast_m
 
@@ -486,7 +502,7 @@ lsgrm <- function(data,
   repeat{
     iter <- iter + 1
 
-    E <- Estep_cpp(data, initial_item[,1:(ncol(initial_item)-dimension+1)], initial_item[,(ncol(initial_item)-1):ncol(initial_item)], grid, prior)
+    E <- Estep_cpp(data, initial_item[,1:(1+n_thres)], initial_item[,((1:(dimension-1))+1+n_thres)], grid, prior)
     dim(E$e.response) <- c(nitem, nrow(grid), max(data, na.rm = TRUE) + 1)
 
     old_sds <- sds
