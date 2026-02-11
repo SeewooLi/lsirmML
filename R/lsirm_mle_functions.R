@@ -160,8 +160,10 @@ Mstep <- function(E, item, contrast_m, sds, max_iter = 5, threshold = 0.000001, 
   ))
 }
 
-Mstep2 <- function(E, item, contrast_m, sds, max_iter = 5, threshold = 0.000001, model){
+Mstep2 <- function(E, item, contrast_m, sds, max_iter = 5, threshold = 0.000001, model, max_cat){
   estimated_item <- item
+
+
 
   IM <- list()
 
@@ -169,24 +171,33 @@ Mstep2 <- function(E, item, contrast_m, sds, max_iter = 5, threshold = 0.000001,
   repeat{
     iter <- iter + 1
     for(i in 1:nrow(item)){
-      # index <- (ncol(item)*i-(ncol(item)-1)):(ncol(item)*i)
+      prior_prec <- diag(
+        c(rep(0,(max_cat[i]+1)), 1/(sds[-1]^2))
+      )
+      # prior_g_div <- c(rep(1,(max_cat[i]+1)), (sds[-1]^2))
 
-      L1L2 <- L1L2_lsirm_cpp(E$e.response[i,,], item[i,1:2], item[i,3:4], E$grid, 2)
+      L1L2 <- L1L2_lsirm_cpp(E$e.response[i,,], item[i,1:(max_cat[i]+1)], item[i,(max_cat[i]+2):ncol(item)], E$grid, max_cat[i]+1)
       # IM[index,index] <- L1L2$IM
       if(model== 1){
+
         diff <- as.vector(
-          solve(L1L2$IM[-1,-1] + diag(1/(sds^2))) %*%
-            (L1L2$gradient[-1] - ((estimated_item[i,-1]-0)/(sds^2)))
+          solve(L1L2$IM[-1,-1] + prior_prec[-1,-1]) %*%
+            (L1L2$gradient[-1] -
+               c(rep(0,(max_cat[i])), (estimated_item[i,(max_cat[i]+2):ncol(item)]-0)/(sds[-1]^2))
+             )
         )
+        # diff <- as.vector(solve(L1L2$IM[-1,-1])%*%  (L1L2$gradient[-1]))
         estimated_item[i,-1] <- estimated_item[i,-1] + diff * contrast_m[i,-1]
       } else if(model == 2){
         diff <- as.vector(
-          solve(L1L2$IM + diag(c(0, 1/(sds^2)))) %*%
-            (L1L2$gradient - ((estimated_item[i,]-0)/c(1,sds^2)))
+          solve(L1L2$IM + prior_prec) %*%
+            (L1L2$gradient -
+               c(rep(0,(max_cat[i]+1)), (estimated_item[i,(max_cat[i]+2):ncol(item)]-0)/(sds[-1]^2))
+             )
         )
-        estimated_item[i,] <- estimated_item[i,] + diff * contrast_m[i,] / 3
+        estimated_item[i,] <- estimated_item[i,] + diff * contrast_m[i,] / 2
       }
-      IM[[i]] <- L1L2$IM + diag(c(0, 1/(sds^2)))
+      IM[[i]] <- L1L2$IM + prior_prec
     }
     if(max(abs(estimated_item - item)) < threshold | iter > max_iter) break
 
@@ -480,22 +491,25 @@ lsgrm <- function(data,
   prior <- prior/sum(prior)
   sds <- rep(1, dimension)
   nitem <- ncol(data)
-  n_thres <- max(data)
+  n_thres <- max(data[!is.na(data)])
+  max_cat <- apply(data, 2, max, na.rm=TRUE)
 
   set.seed(1)
 
-  if(is.null(contrast_m)){
-    contrast_m <- matrix(1, nrow = nitem, ncol = (dimension+1))
-    contrast_m[,3:(dimension+1)][upper.tri(contrast_m[,3:(dimension+1)])] <- 0
-  }
   if(is.null(initial_item)){
     threshold_mat <- matrix(nrow=nitem, ncol=n_thres)
     for(i in 1:nitem){
-      threshold_mat[i, 1:max(data[,i])] <- rnorm(max(data[,i]),0,.1)
+      threshold_mat[i, 1:max_cat[i]] <- seq(-.5, .5, length = max_cat[i])
     }
     initial_item <- cbind(1, threshold_mat, matrix(rnorm(nitem*(dimension-1),0,.1), nrow = nitem))
   }
+  if(is.null(contrast_m)){
+    contrast_m <- matrix(1, nrow = nitem, ncol = ncol(initial_item))
+    contrast_m[,(n_thres+2):ncol(initial_item)][upper.tri(contrast_m[,(n_thres+2):ncol(initial_item)])] <- 0
+  }
+
   initial_item <- initial_item * contrast_m
+
 
   iter <- 0
   # EM_history <- list()
@@ -510,13 +524,14 @@ lsgrm <- function(data,
     cov_mat <- t(E$grid) %*% sweep(E$grid, 1, E$Ak, FUN = "*") - factor_means %*% t(factor_means)
     sds <- sqrt(diag(cov_mat))
     sds[-1] <- sqrt(mean(sds[-1]^2))
-    # sds[-1] <- sds[2]/sds[1]
-    sds[1] <- 1
 
-    M <- Mstep2(E, initial_item, contrast_m, sds, model=model)
 
-    M[[1]][,2] <- M[[1]][,2] - factor_means[1] * M[[1]][,1]
-    M[[1]][,-(1:2)] <- sweep(M[[1]][,-(1:2)], 2, factor_means[-1], FUN = "-")
+    M <- Mstep2(E, initial_item, contrast_m, sds, model=model, max_cat=max_cat)
+
+    if(model == 2) sds[1] <- 1
+
+    M[[1]][,2:(1+n_thres)] <- M[[1]][,2:(1+n_thres)] - factor_means[1] * M[[1]][,1]
+    M[[1]][,-(1:(1+n_thres))] <- sweep(M[[1]][,-(1:(1+n_thres))], 2, factor_means[-1], FUN = "-")
     M[[1]][which(contrast_m==0)] <- 0
     # M[[1]] <- sweep(M[[1]], 2, old_sds/sds, FUN = "*")
     # M[,1] <- M[,1]/sds[1]
@@ -546,10 +561,10 @@ lsgrm <- function(data,
 
 
   theta <- E$posterior%*%E$grid
-  theta_se <- sqrt(E$posterior%*%(E$grid^2)-theta^2)
+  # theta_se <- sqrt(E$posterior%*%(E$grid^2)-theta^2)
   return(list(
     par_est = initial_item,
-    IM = se_correction(E$e.response, grid, initial_item, M[[2]], model),
+    # IM = se_correction(E$e.response, grid, initial_item, M[[2]], model),
     # EM_history = EM_history,
     fk=E$freq,
     iter=iter,
@@ -559,7 +574,7 @@ lsgrm <- function(data,
     posterior=E$posterior,
     Ak=E$Ak,
     theta = theta,
-    theta_se = theta_se,
+    # theta_se = theta_se,
     logL= E$logL,
     f_cov = diag(sds^2),
     args_list = args_list,
@@ -663,14 +678,16 @@ plot.lsirm <- function(item, range=c(-2.5, 2.5), ls_positions=NULL, gamma=NULL){
   if(is.null(gamma)) gamma <- 1
   if(is.list(item)){
     if(is.null(gamma)) gamma <- sqrt(item$f_cov[2,2])
+    d <- item$args_list$dimension
     ls_positions <- as.data.frame(item$theta[,-1])
     item <- item$par_est
+    item <- item[, (ncol(item) - d + 1):ncol(item)]
   }
 
   if(is.null(rownames(item))){
     rownames(item) <- paste0("Q", 1:nrow(item))
   }
-  df <- as.data.frame(item[,-c(1,2)])
+  df <- as.data.frame(item)
   colnames(df) <- c("Dim1", "Dim2")
   df$Label <- rownames(df)
 
