@@ -172,7 +172,7 @@ Mstep2 <- function(E, item, contrast_m, sds, max_iter = 5, threshold = 0.000001,
     iter <- iter + 1
     for(i in 1:nrow(item)){
       prior_prec <- diag(
-        c(rep(0,(max_cat[i]+1)), 1/(sds[-1]^2))
+        c(rep(0,max_cat[i]+1), 1/(sds[-1]^2))
       )
       # prior_g_div <- c(rep(1,(max_cat[i]+1)), (sds[-1]^2))
 
@@ -525,13 +525,13 @@ lsgrm <- function(data,
     sds <- sqrt(diag(cov_mat))
     sds[-1] <- sqrt(mean(sds[-1]^2))
 
-
     M <- Mstep2(E, initial_item, contrast_m, sds, model=model, max_cat=max_cat)
 
-    if(model == 2) sds[1] <- 1
 
-    M[[1]][,2:(1+n_thres)] <- M[[1]][,2:(1+n_thres)] - factor_means[1] * M[[1]][,1]
-    M[[1]][,-(1:(1+n_thres))] <- sweep(M[[1]][,-(1:(1+n_thres))], 2, factor_means[-1], FUN = "-")
+    if(model == 1) M[[1]][,1] <- M[[1]][,1] * sds[1]
+    sds[1] <- 1
+    M[[1]][,2:(1+n_thres)] <- sweep(M[[1]][,2:(1+n_thres), drop=FALSE], 1, factor_means[1] * M[[1]][,1], FUN = "-")
+    M[[1]][,tail(seq_len(ncol(M[[1]])), 2)] <- sweep(M[[1]][,tail(seq_len(ncol(M[[1]])), 2)], 2, factor_means[-1], FUN = "-")
     M[[1]][which(contrast_m==0)] <- 0
     # M[[1]] <- sweep(M[[1]], 2, old_sds/sds, FUN = "*")
     # M[,1] <- M[,1]/sds[1]
@@ -681,7 +681,7 @@ plot.lsirm <- function(item, range=c(-2.5, 2.5), ls_positions=NULL, gamma=NULL){
     d <- item$args_list$dimension
     ls_positions <- as.data.frame(item$theta[,-1])
     item <- item$par_est
-    item <- item[, (ncol(item) - d + 1):ncol(item)]
+    item <- item[, tail(seq_len(ncol(item)), 2)]
   }
 
   if(is.null(rownames(item))){
