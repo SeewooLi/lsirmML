@@ -11,6 +11,28 @@ Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
+// max_data_cols
+Rcpp::IntegerVector max_data_cols(const Rcpp::IntegerMatrix& data);
+RcppExport SEXP _lsirmML_max_data_cols(SEXP dataSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::IntegerMatrix& >::type data(dataSEXP);
+    rcpp_result_gen = Rcpp::wrap(max_data_cols(data));
+    return rcpp_result_gen;
+END_RCPP
+}
+// make_band_matrix
+IntegerMatrix make_band_matrix(int K);
+RcppExport SEXP _lsirmML_make_band_matrix(SEXP KSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< int >::type K(KSEXP);
+    rcpp_result_gen = Rcpp::wrap(make_band_matrix(K));
+    return rcpp_result_gen;
+END_RCPP
+}
 // P_lsirm_cpp
 NumericVector P_lsirm_cpp(NumericMatrix theta, NumericVector param);
 RcppExport SEXP _lsirmML_P_lsirm_cpp(SEXP thetaSEXP, SEXP paramSEXP) {
@@ -24,51 +46,73 @@ BEGIN_RCPP
 END_RCPP
 }
 // llik_cpp
-Rcpp::NumericMatrix llik_cpp(const Rcpp::IntegerVector& data, const Rcpp::NumericMatrix& grid, const Rcpp::NumericVector& item);
-RcppExport SEXP _lsirmML_llik_cpp(SEXP dataSEXP, SEXP gridSEXP, SEXP itemSEXP) {
+NumericMatrix llik_cpp(const IntegerVector& data, const NumericMatrix& grid, double slope, const NumericVector& threshold, const NumericVector& coord, int c);
+RcppExport SEXP _lsirmML_llik_cpp(SEXP dataSEXP, SEXP gridSEXP, SEXP slopeSEXP, SEXP thresholdSEXP, SEXP coordSEXP, SEXP cSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const Rcpp::IntegerVector& >::type data(dataSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::NumericMatrix& >::type grid(gridSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type item(itemSEXP);
-    rcpp_result_gen = Rcpp::wrap(llik_cpp(data, grid, item));
+    Rcpp::traits::input_parameter< const IntegerVector& >::type data(dataSEXP);
+    Rcpp::traits::input_parameter< const NumericMatrix& >::type grid(gridSEXP);
+    Rcpp::traits::input_parameter< double >::type slope(slopeSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type threshold(thresholdSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type coord(coordSEXP);
+    Rcpp::traits::input_parameter< int >::type c(cSEXP);
+    rcpp_result_gen = Rcpp::wrap(llik_cpp(data, grid, slope, threshold, coord, c));
     return rcpp_result_gen;
 END_RCPP
 }
 // Estep_cpp
-Rcpp::List Estep_cpp(const Rcpp::IntegerMatrix& data, const Rcpp::NumericMatrix& item, const Rcpp::NumericMatrix& grid, const Rcpp::NumericVector& prior);
-RcppExport SEXP _lsirmML_Estep_cpp(SEXP dataSEXP, SEXP itemSEXP, SEXP gridSEXP, SEXP priorSEXP) {
+Rcpp::List Estep_cpp(const Rcpp::IntegerMatrix& data, const Rcpp::NumericMatrix& item, const Rcpp::NumericMatrix& coord, const Rcpp::NumericMatrix& grid, const Rcpp::NumericVector& prior);
+RcppExport SEXP _lsirmML_Estep_cpp(SEXP dataSEXP, SEXP itemSEXP, SEXP coordSEXP, SEXP gridSEXP, SEXP priorSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const Rcpp::IntegerMatrix& >::type data(dataSEXP);
     Rcpp::traits::input_parameter< const Rcpp::NumericMatrix& >::type item(itemSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::NumericMatrix& >::type coord(coordSEXP);
     Rcpp::traits::input_parameter< const Rcpp::NumericMatrix& >::type grid(gridSEXP);
     Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type prior(priorSEXP);
-    rcpp_result_gen = Rcpp::wrap(Estep_cpp(data, item, grid, prior));
+    rcpp_result_gen = Rcpp::wrap(Estep_cpp(data, item, coord, grid, prior));
     return rcpp_result_gen;
 END_RCPP
 }
-// L1L2_lsirm_cpp
-List L1L2_lsirm_cpp(NumericMatrix e_response, NumericVector par, NumericMatrix grid);
-RcppExport SEXP _lsirmML_L1L2_lsirm_cpp(SEXP e_responseSEXP, SEXP parSEXP, SEXP gridSEXP) {
+// L1L2_lsirm_cpp0
+List L1L2_lsirm_cpp0(NumericMatrix e_response, NumericVector par, NumericMatrix grid);
+RcppExport SEXP _lsirmML_L1L2_lsirm_cpp0(SEXP e_responseSEXP, SEXP parSEXP, SEXP gridSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< NumericMatrix >::type e_response(e_responseSEXP);
     Rcpp::traits::input_parameter< NumericVector >::type par(parSEXP);
     Rcpp::traits::input_parameter< NumericMatrix >::type grid(gridSEXP);
-    rcpp_result_gen = Rcpp::wrap(L1L2_lsirm_cpp(e_response, par, grid));
+    rcpp_result_gen = Rcpp::wrap(L1L2_lsirm_cpp0(e_response, par, grid));
+    return rcpp_result_gen;
+END_RCPP
+}
+// L1L2_lsirm_cpp
+List L1L2_lsirm_cpp(const NumericMatrix& e_response, const NumericVector& item, const NumericVector& coord, const NumericMatrix& grid, int c);
+RcppExport SEXP _lsirmML_L1L2_lsirm_cpp(SEXP e_responseSEXP, SEXP itemSEXP, SEXP coordSEXP, SEXP gridSEXP, SEXP cSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const NumericMatrix& >::type e_response(e_responseSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type item(itemSEXP);
+    Rcpp::traits::input_parameter< const NumericVector& >::type coord(coordSEXP);
+    Rcpp::traits::input_parameter< const NumericMatrix& >::type grid(gridSEXP);
+    Rcpp::traits::input_parameter< int >::type c(cSEXP);
+    rcpp_result_gen = Rcpp::wrap(L1L2_lsirm_cpp(e_response, item, coord, grid, c));
     return rcpp_result_gen;
 END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
+    {"_lsirmML_max_data_cols", (DL_FUNC) &_lsirmML_max_data_cols, 1},
+    {"_lsirmML_make_band_matrix", (DL_FUNC) &_lsirmML_make_band_matrix, 1},
     {"_lsirmML_P_lsirm_cpp", (DL_FUNC) &_lsirmML_P_lsirm_cpp, 2},
-    {"_lsirmML_llik_cpp", (DL_FUNC) &_lsirmML_llik_cpp, 3},
-    {"_lsirmML_Estep_cpp", (DL_FUNC) &_lsirmML_Estep_cpp, 4},
-    {"_lsirmML_L1L2_lsirm_cpp", (DL_FUNC) &_lsirmML_L1L2_lsirm_cpp, 3},
+    {"_lsirmML_llik_cpp", (DL_FUNC) &_lsirmML_llik_cpp, 6},
+    {"_lsirmML_Estep_cpp", (DL_FUNC) &_lsirmML_Estep_cpp, 5},
+    {"_lsirmML_L1L2_lsirm_cpp0", (DL_FUNC) &_lsirmML_L1L2_lsirm_cpp0, 3},
+    {"_lsirmML_L1L2_lsirm_cpp", (DL_FUNC) &_lsirmML_L1L2_lsirm_cpp, 5},
     {NULL, NULL, 0}
 };
 

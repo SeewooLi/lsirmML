@@ -1,7 +1,7 @@
 Package: lsirmML
 Type: Package
 Title: Maximum Likelihood Estimation of the Latent Space Item Response Model
-Version: 0.1.0
+Version: 1.0.0
 Author: Seewoo Li <seewooli@ucla.edu>
 Maintainer: Seewoo Li <seewooli@ucla.edu>
 Description: Toolkits for maximum likelihood (ML) estimation of 
