@@ -90,8 +90,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // L1L2_lsirm_cpp
-List L1L2_lsirm_cpp(const NumericMatrix& e_response, const NumericVector& item, const NumericVector& coord, const NumericMatrix& grid, int c);
-RcppExport SEXP _lsirmML_L1L2_lsirm_cpp(SEXP e_responseSEXP, SEXP itemSEXP, SEXP coordSEXP, SEXP gridSEXP, SEXP cSEXP) {
+List L1L2_lsirm_cpp(const NumericMatrix& e_response, const NumericVector& item, const NumericVector& coord, const NumericMatrix& grid, int c, bool calculate_IM_c);
+RcppExport SEXP _lsirmML_L1L2_lsirm_cpp(SEXP e_responseSEXP, SEXP itemSEXP, SEXP coordSEXP, SEXP gridSEXP, SEXP cSEXP, SEXP calculate_IM_cSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -100,7 +100,8 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const NumericVector& >::type coord(coordSEXP);
     Rcpp::traits::input_parameter< const NumericMatrix& >::type grid(gridSEXP);
     Rcpp::traits::input_parameter< int >::type c(cSEXP);
-    rcpp_result_gen = Rcpp::wrap(L1L2_lsirm_cpp(e_response, item, coord, grid, c));
+    Rcpp::traits::input_parameter< bool >::type calculate_IM_c(calculate_IM_cSEXP);
+    rcpp_result_gen = Rcpp::wrap(L1L2_lsirm_cpp(e_response, item, coord, grid, c, calculate_IM_c));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -112,7 +113,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_lsirmML_llik_cpp", (DL_FUNC) &_lsirmML_llik_cpp, 6},
     {"_lsirmML_Estep_cpp", (DL_FUNC) &_lsirmML_Estep_cpp, 5},
     {"_lsirmML_L1L2_lsirm_cpp0", (DL_FUNC) &_lsirmML_L1L2_lsirm_cpp0, 3},
-    {"_lsirmML_L1L2_lsirm_cpp", (DL_FUNC) &_lsirmML_L1L2_lsirm_cpp, 5},
+    {"_lsirmML_L1L2_lsirm_cpp", (DL_FUNC) &_lsirmML_L1L2_lsirm_cpp, 6},
     {NULL, NULL, 0}
 };
 

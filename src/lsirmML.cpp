@@ -757,7 +757,8 @@ List L1L2_lsirm_cpp(const NumericMatrix& e_response,
                              const NumericVector& item,
                              const NumericVector& coord,
                              const NumericMatrix& grid,
-                             int c) {
+                             int c,
+                             bool calculate_IM_c = false) {
   int n_item  = item.size();
   int n_coord = coord.size();
   int npar    = n_item + n_coord;
@@ -776,6 +777,14 @@ List L1L2_lsirm_cpp(const NumericMatrix& e_response,
   NumericMatrix IM(npar, npar);
   double* grad_ptr = gradient.begin();
   double* IM_ptr   = IM.begin();
+
+  // Initialize IM_c only if needed
+  NumericMatrix IM_c;
+  double* IM_c_ptr = nullptr;
+  if (calculate_IM_c) {
+    IM_c = NumericMatrix(npar, npar);
+    IM_c_ptr = IM_c.begin();
+  }
 
   // Pre-calculate f[m] and band matrix outside parallel block
   NumericVector f(M);
@@ -859,20 +868,28 @@ List L1L2_lsirm_cpp(const NumericMatrix& e_response,
     for (int p = 0; p < npar; p++) {
       for (int q = 0; q <= p; q++) {
         double im_sum = 0.0;
+        double im_c_sum = 0.0;
         for (int k = 0; k < c; k++) {
           im_sum += (f[m] / local_prob[k]) * local_delta[p + k * npar] * local_delta[q + k * npar];
         }
         IM_ptr[p + q * npar] += im_sum;
         if (p != q) IM_ptr[q + p * npar] += im_sum;
+
+        if (calculate_IM_c) {
+          IM_c_ptr[p + q * npar] += im_c_sum;
+          if (p != q) IM_c_ptr[q + p * npar] += im_c_sum;
+        }
       }
     }
   }
 }
 
-return List::create(
-  _["gradient"] = gradient,
-  _["IM"]       = IM
-);
+  List res = List::create(_["gradient"] = gradient, _["IM"] = IM);
+  if (calculate_IM_c) {
+    res["IM_c"] = IM_c;
+  }
+
+  return res;
 }
 
 /*** R

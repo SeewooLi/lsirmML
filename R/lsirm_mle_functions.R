@@ -160,12 +160,12 @@ Estep <- function(data, item, grid, prior = NULL){
 #   ))
 # }
 
-Mstep <- function(E, item, contrast_m, sds, max_iter = 5, threshold = 0.000001, model, max_cat){
+Mstep <- function(E, item, contrast_m, sds, max_iter = 5, threshold = 0.000001, model, max_cat, calculate_IM_c=FALSE){
   estimated_item <- item
 
 
 
-  IM <- list()
+  se <- list()
 
   iter <- 0
   repeat{
@@ -174,10 +174,13 @@ Mstep <- function(E, item, contrast_m, sds, max_iter = 5, threshold = 0.000001, 
       prior_prec <- diag(
         c(rep(0,max_cat[i]+1), 1/(sds[-1]^2))
       )
-      # prior_g_div <- c(rep(1,(max_cat[i]+1)), (sds[-1]^2))
 
-      L1L2 <- L1L2_lsirm_cpp(E$e.response[i,,], item[i,1:(max_cat[i]+1)], item[i,(max_cat[i]+2):ncol(item)], E$grid, max_cat[i]+1)
-      # IM[index,index] <- L1L2$IM
+      L1L2 <- L1L2_lsirm_cpp(E$e.response[i,,],
+                             item[i,1:(max_cat[i]+1)],
+                             item[i,(max_cat[i]+2):ncol(item)],
+                             E$grid,
+                             max_cat[i]+1,
+                             calculate_IM_c=calculate_IM_c)
       if(model== 1){
 
         diff <- as.vector(
@@ -186,8 +189,7 @@ Mstep <- function(E, item, contrast_m, sds, max_iter = 5, threshold = 0.000001, 
                c(rep(0,(max_cat[i])), (estimated_item[i,(max_cat[i]+2):ncol(item)]-0)/(sds[-1]^2))
              )
         )
-        # diff <- as.vector(solve(L1L2$IM[-1,-1])%*%  (L1L2$gradient[-1]))
-        estimated_item[i,-1] <- estimated_item[i,-1] + diff * contrast_m[i,-1]
+        estimated_item[i,-1] <- estimated_item[i,-1] + diff * contrast_m[i,-1] / 2
       } else if(model == 2){
         diff <- as.vector(
           solve(L1L2$IM + prior_prec) %*%
@@ -197,7 +199,16 @@ Mstep <- function(E, item, contrast_m, sds, max_iter = 5, threshold = 0.000001, 
         )
         estimated_item[i,] <- estimated_item[i,] + diff * contrast_m[i,] / 2
       }
-      IM[[i]] <- L1L2$IM + prior_prec
+
+      if(calculate_IM_c){
+        if(model== 1){
+          L1L2$IM <- L1L2$IM[-1,-1]
+          prior_prec <- prior_prec[-1,-1]
+          L1L2$IM_c <- L1L2$IM_c[-1,-1]
+        }
+        se[[i]] <- solve(L1L2$IM + prior_prec - L1L2$IM_c)
+      }
+
     }
     if(max(abs(estimated_item - item)) < threshold | iter > max_iter) break
 
@@ -206,7 +217,7 @@ Mstep <- function(E, item, contrast_m, sds, max_iter = 5, threshold = 0.000001, 
 
   return(list(
     estimated_item,
-    IM
+    se
     ))
 }
 
@@ -469,28 +480,29 @@ lsirm <- function(data,
   repeat{
     iter <- iter + 1
 
+    # E-step
     E <- Estep_cpp(data, initial_item[,1:(1+n_thres)], initial_item[,((1:(dimension-1))+1+n_thres)], grid, prior)
     dim(E$e.response) <- c(nitem, nrow(grid), max(data, na.rm = TRUE) + 1)
 
+    # mean variance
     old_sds <- sds
     factor_means <- as.vector(E$Ak%*%E$grid)
     cov_mat <- t(E$grid) %*% sweep(E$grid, 1, E$Ak, FUN = "*") - factor_means %*% t(factor_means)
     sds <- sqrt(diag(cov_mat))
     sds[-1] <- sqrt(mean(sds[-1]^2))
 
+    # M-step
+    prev_item <- initial_item
     M <- Mstep(E, initial_item, contrast_m, sds, model=model, max_cat=max_cat)
 
-
+    # parameter scaling
     if(model == 1) M[[1]][,1] <- M[[1]][,1] * sds[1]
     sds[1] <- 1
     M[[1]][,2:(1+n_thres)] <- sweep(M[[1]][,2:(1+n_thres), drop=FALSE], 1, factor_means[1] * M[[1]][,1], FUN = "-")
     M[[1]][,tail(seq_len(ncol(M[[1]])), 2)] <- sweep(M[[1]][,tail(seq_len(ncol(M[[1]])), 2)], 2, factor_means[-1], FUN = "-")
     M[[1]][which(contrast_m==0)] <- 0
-    # M[[1]] <- sweep(M[[1]], 2, old_sds/sds, FUN = "*")
-    # M[,1] <- M[,1]/sds[1]
 
-    # EM_history[[iter]] <- M[[1]]
-
+    # update grid and prior
     ranges <- lapply(c(1,rep(0.8, dimension-1))*sds, function(sd) range * sd)
     grid_list <- lapply(ranges, function(r) seq(r[1], r[2], length.out = q))
     grid <- as.matrix(do.call(expand.grid, grid_list))
@@ -500,6 +512,7 @@ lsirm <- function(data,
                               sigma = diag(sds^2))
     prior <- prior/sum(prior)
 
+    # evaluate convergence
     diff <- max(abs(initial_item - M[[1]]), na.rm = TRUE)
 
     initial_item <- M[[1]]
@@ -517,7 +530,7 @@ lsirm <- function(data,
   # theta_se <- sqrt(E$posterior%*%(E$grid^2)-theta^2)
   return(list(
     par_est = initial_item,
-    # IM = se_correction(E$e.response, grid, initial_item, M[[2]], model),
+    se = Mstep(E, prev_item, contrast_m, sds, model=model, max_cat=max_cat, calculate_IM_c = TRUE)[[2]],
     # EM_history = EM_history,
     fk=E$freq,
     iter=iter,
@@ -627,15 +640,19 @@ library(ggplot2)
 #' @import ggplot2
 #'
 #' @examples
-plot.lsirm <- function(item, range=c(-2.5, 2.5), ls_positions=NULL, gamma=NULL){
-  if(is.null(gamma)) gamma <- 1
+plot.lsirm <- function(item, range=c(-3, 3), ls_positions=NULL, cov_list=NULL, gamma=NULL){
+
   if(is.list(item)){
     if(is.null(gamma)) gamma <- sqrt(item$f_cov[2,2])
     d <- item$args_list$dimension
     ls_positions <- as.data.frame(item$theta[,-1])
+    cov_list <- item$se
+
     item <- item$par_est
     item <- item[, tail(seq_len(ncol(item)), 2)]
   }
+
+  if(is.null(gamma)) gamma <- 1
 
   if(is.null(rownames(item))){
     rownames(item) <- paste0("Q", 1:nrow(item))
@@ -644,14 +661,43 @@ plot.lsirm <- function(item, range=c(-2.5, 2.5), ls_positions=NULL, gamma=NULL){
   colnames(df) <- c("Dim1", "Dim2")
   df$Label <- rownames(df)
 
+
+
   # Plot
   p <- ggplot2::ggplot() +
-    # geom_point(size = 0) +
+    ggplot2::geom_point(data = df, mapping = ggplot2::aes(x = Dim1, y = Dim2), size = 2, color="blue",
+               alpha = 0.5) +
     ggplot2::geom_text(data = df, mapping = ggplot2::aes(x = Dim1, y = Dim2, label = Label), vjust = 0, hjust = 0) +
     ggplot2::theme_minimal() +
     ggplot2::coord_cartesian(xlim = range * gamma, ylim = range * gamma)+
     ggplot2::labs(title = NULL,
          x = "coordinate 1", y = "coordinate 2")
+
+  if(!is.null(cov_list)){
+    # draw contour
+    ellipse_df <- do.call(rbind, lapply(seq_len(nrow(df)), function(i) {
+
+      e <- ellipse_from_cov(
+        mu = c(df$Dim1[i], df$Dim2[i]),
+        Sigma = cov_list[[i]],
+        level = 0.90
+      )
+
+      e$id <- i   # group id for ggplot
+      e
+    }))
+
+    p <- p +
+      ggplot2::geom_path(data = ellipse_df,
+                         aes(x = x, y = y, group = id),
+                         linewidth = 1,
+                         linetype="dotted",
+                         color="grey",
+                         alpha = 0.7)
+  }
+
+
+
   if(!is.null(ls_positions)){
     colnames(ls_positions) <- c("coordinate1","coordinate2")
 
@@ -663,4 +709,22 @@ plot.lsirm <- function(item, range=c(-2.5, 2.5), ls_positions=NULL, gamma=NULL){
                  alpha=0.7)
   }
   return(p)
+}
+
+
+ellipse_from_cov <- function(mu, Sigma, level = 0.90, npoints = 100) {
+  index <- (nrow(Sigma)-1):nrow(Sigma)
+  Sigma <- Sigma[index,index]
+  radius <- sqrt(qchisq(level, df = 2))
+  eig <- eigen(Sigma)
+
+  theta <- seq(0, 2*pi, length.out = npoints)
+
+  circle <- rbind(cos(theta), sin(theta))
+
+  ellipse <- t(radius * eig$vectors %*%
+                 diag(sqrt(eig$values)) %*%
+                 circle)
+
+  data.frame(x = ellipse[,1] + mu[1], y = ellipse[,2] + mu[2])
 }

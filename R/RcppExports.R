@@ -25,7 +25,7 @@ L1L2_lsirm_cpp0 <- function(e_response, par, grid) {
     .Call(`_lsirmML_L1L2_lsirm_cpp0`, e_response, par, grid)
 }
 
-L1L2_lsirm_cpp <- function(e_response, item, coord, grid, c) {
-    .Call(`_lsirmML_L1L2_lsirm_cpp`, e_response, item, coord, grid, c)
+L1L2_lsirm_cpp <- function(e_response, item, coord, grid, c, calculate_IM_c = FALSE) {
+    .Call(`_lsirmML_L1L2_lsirm_cpp`, e_response, item, coord, grid, c, calculate_IM_c)
 }
 
